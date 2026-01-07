@@ -3,8 +3,10 @@
   background: #222222;
   color: #f5e7c6;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: clamp(1.5rem, 4vw, 3rem);
   padding: clamp(2rem, 6vw, 4rem);
 }
 
@@ -31,6 +33,11 @@
   font-size: clamp(2rem, 4vw, 2.8rem);
 }
 
+.stats-card h2 {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+}
+
 .stats-card p {
   margin: 0;
   color: rgba(245, 231, 198, 0.85);
@@ -54,4 +61,65 @@
 
 .stats-logout:hover {
   background: rgba(245, 231, 198, 0.1);
+}
+
+.pass-menu {
+  width: 100%;
+  max-width: 960px;
+  text-align: left;
+}
+
+.pass-menu__board {
+  margin-top: 1rem;
+  background: #ff6d1f;
+  border-radius: 1.5rem;
+  padding: clamp(1rem, 3vw, 2rem);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pass-tile {
+  flex: 0 0 150px;
+  min-height: 150px;
+  border-radius: 1rem;
+  border: 1px solid rgba(34, 34, 34, 0.4);
+  background: #f5e7c6;
+  color: #222222;
+  font-size: 1.5rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.pass-tile span {
+  pointer-events: none;
+}
+
+.pass-tile:hover,
+.pass-tile:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+  border-color: rgba(34, 34, 34, 0.6);
+}
+
+.pass-tile:active {
+  transform: translateY(0);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+.pass-tile--add {
+  font-size: 3rem;
+  font-weight: 600;
+}
+
+@media (max-width: 520px) {
+  .pass-tile {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-height: 120px;
+  }
 }

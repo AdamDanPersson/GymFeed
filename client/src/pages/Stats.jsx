@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './Stats.css'
 
+const PASS_TEMPLATES = ['Push', 'Pull']
+
 function StatsPage() {
   const navigate = useNavigate()
   const initialUser = useMemo(() => {
@@ -36,6 +38,24 @@ function StatsPage() {
           </button>
         )}
       </div>
+
+      <section className="pass-menu" aria-label="Pass">
+        <h2>Pass</h2>
+        <div className="pass-menu__board">
+          {PASS_TEMPLATES.map((label) => (
+            <button type="button" className="pass-tile" key={label}>
+              <span>{label}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className="pass-tile pass-tile--add"
+            aria-label="Lägg till nytt pass"
+          >
+            <span aria-hidden="true">+</span>
+          </button>
+        </div>
+      </section>
     </main>
   )
 }
