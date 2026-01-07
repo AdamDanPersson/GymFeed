@@ -24,18 +24,32 @@ app.get('/health', (_req, res) => {
 })
 
 app.post('/auth/register', async (req, res) => {
-  const { email, password, name } = req.body
+  const { email, password, firstName, lastName } = req.body
 
-  if (!email || !password) {
-    return res.status(400).json({ message: 'Email and password are required' })
+  if (!email || typeof email !== 'string') {
+    return res.status(400).json({ message: 'Email is required' })
+  }
+
+  if (!password || typeof password !== 'string' || password.length < 8) {
+    return res.status(400).json({ message: 'Password must be at least 8 characters' })
+  }
+
+  const trimmedFirstName = typeof firstName === 'string' ? firstName.trim() : ''
+  const trimmedLastName = typeof lastName === 'string' ? lastName.trim() : ''
+
+  if (!trimmedFirstName || !trimmedLastName) {
+    return res.status(400).json({ message: 'First and last name are required' })
   }
 
   const normalizedEmail = email.trim().toLowerCase()
-  const trimmedName = name?.trim() || null
+  const fullName = `${trimmedFirstName} ${trimmedLastName}`.trim()
+
   const userDoc = {
     email: normalizedEmail,
     password,
-    name: trimmedName,
+    firstName: trimmedFirstName,
+    lastName: trimmedLastName,
+    fullName,
     createdAt: new Date()
   }
 
@@ -44,7 +58,9 @@ app.post('/auth/register', async (req, res) => {
     return res.status(201).json({
       userId: result.insertedId,
       email: normalizedEmail,
-      name: trimmedName
+      firstName: trimmedFirstName,
+      lastName: trimmedLastName,
+      name: fullName
     })
   } catch (error) {
     if (error.code === 11000) {
@@ -70,10 +86,14 @@ app.post('/auth/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
+    const responseFullName = user.fullName || user.name || null
+
     return res.json({
       userId: user._id,
       email: user.email,
-      name: user.name || null
+      firstName: user.firstName || null,
+      lastName: user.lastName || null,
+      name: responseFullName
     })
   } catch (error) {
     console.error('Login error', error)

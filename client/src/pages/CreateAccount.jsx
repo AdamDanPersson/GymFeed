@@ -23,15 +23,30 @@ function CreateAccountPage() {
     event.preventDefault()
     setFeedback({ error: '', success: '' })
 
-    const payload = {
-      email: form.email,
-      password: form.password,
-      name: `${form.firstName} ${form.lastName}`.trim()
+    const trimmedFirstName = form.firstName.trim()
+    const trimmedLastName = form.lastName.trim()
+    const trimmedEmail = form.email.trim()
+
+    if (!trimmedFirstName || !trimmedLastName) {
+      setFeedback({ error: 'Fyll i både för- och efternamn', success: '' })
+      return
     }
 
-    if (!payload.email || !payload.password) {
-      setFeedback({ error: 'Fyll i e-post och lösenord', success: '' })
+    if (!trimmedEmail) {
+      setFeedback({ error: 'Fyll i e-post', success: '' })
       return
+    }
+
+    if (!form.password || form.password.length < 8) {
+      setFeedback({ error: 'Lösenordet måste vara minst 8 tecken', success: '' })
+      return
+    }
+
+    const payload = {
+      email: trimmedEmail,
+      password: form.password,
+      firstName: trimmedFirstName,
+      lastName: trimmedLastName
     }
 
     setIsSubmitting(true)
@@ -69,6 +84,7 @@ function CreateAccountPage() {
                 placeholder="Ex. Lina"
                 value={form.firstName}
                 onChange={handleChange}
+                required
               />
             </label>
             <label>
@@ -79,6 +95,7 @@ function CreateAccountPage() {
                 placeholder="Ex. Andersson"
                 value={form.lastName}
                 onChange={handleChange}
+                required
               />
             </label>
           </div>
