@@ -1,7 +1,40 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { loginUser } from '../lib/apiClient'
 import './Login.css'
 
 function LoginPage() {
+  const navigate = useNavigate()
+  const [form, setForm] = useState({ email: '', password: '' })
+  const [feedback, setFeedback] = useState({ error: '' })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleChange = (event) => {
+    const { name, value } = event.target
+    setForm((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setFeedback({ error: '' })
+
+    if (!form.email || !form.password) {
+      setFeedback({ error: 'Fyll i både e-post och lösenord' })
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const data = await loginUser(form)
+      localStorage.setItem('user', JSON.stringify(data))
+      navigate('/')
+    } catch (error) {
+      setFeedback({ error: error.message })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
   return (
     <section className="auth-page auth-page--login">
       <div className="auth-card">
@@ -10,19 +43,39 @@ function LoginPage() {
           Logga in och fortsätt följa din träning
         </p>
 
-        <form className="auth-form" aria-label="Logga in">
+        <form className="auth-form" aria-label="Logga in" onSubmit={handleSubmit}>
           <label>
             <span>E-post</span>
-            <input type="email" placeholder="namn@mail.se" />
+            <input
+              name="email"
+              type="email"
+              placeholder="namn@mail.se"
+              value={form.email}
+              onChange={handleChange}
+              required
+            />
           </label>
           <label>
             <span>Lösenord</span>
-            <input type="password" placeholder="• • • • • • • •" />
+            <input
+              name="password"
+              type="password"
+              placeholder="• • • • • • • •"
+              value={form.password}
+              onChange={handleChange}
+              required
+            />
           </label>
           <div className="auth-actions">
-
-            <button type="button">Fortsätt</button>
+            <button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? 'Loggar in...' : 'Fortsätt'}
+            </button>
           </div>
+          {feedback.error && (
+            <p className="auth-feedback auth-feedback--error" role="alert">
+              {feedback.error}
+            </p>
+          )}
         </form>
 
         <p className="auth-meta">

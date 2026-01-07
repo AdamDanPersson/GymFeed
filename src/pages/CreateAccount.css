@@ -99,3 +99,17 @@
   color: inherit;
   text-decoration: underline;
 }
+
+.auth-feedback {
+  margin: 0.75rem 0 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+}
+
+.auth-feedback--error {
+  color: #ff8a80;
+}
+
+.auth-feedback--success {
+  color: #7dd87d;
+}

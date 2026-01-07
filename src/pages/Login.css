@@ -107,6 +107,20 @@
   text-decoration: underline;
 }
 
+.auth-feedback {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+}
+
+.auth-feedback--error {
+  color: #c62828;
+}
+
+.auth-feedback--success {
+  color: #1b5e20;
+}
+
 @media (max-width: 480px) {
   .auth-actions {
     flex-direction: column;
