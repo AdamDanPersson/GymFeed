@@ -98,4 +98,31 @@ export function reorderWorkouts(workoutIds) {
   })
 }
 
+export function fetchWorkoutExercises(workoutId) {
+  return request(`/workouts/${workoutId}/exercises`, { requireUser: true })
+}
+
+export function addWorkoutExercise(workoutId, payload) {
+  return request(`/workouts/${workoutId}/exercises`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    requireUser: true
+  })
+}
+
+export function reorderWorkoutExercises(workoutId, items) {
+  return request(`/workouts/${workoutId}/exercises/reorder`, {
+    method: 'PUT',
+    body: JSON.stringify(items),
+    requireUser: true
+  })
+}
+
+export function deleteWorkoutExercise(workoutId, linkId) {
+  return request(`/workouts/${workoutId}/exercises/${linkId}`, {
+    method: 'DELETE',
+    requireUser: true
+  })
+}
+
 export { getStoredUser, getStoredUserId }

@@ -19,6 +19,8 @@ app.use(express.json())
 
 let usersCollection
 let workoutsCollection
+let exercisesCollection
+let workoutExercisesCollection
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
@@ -172,8 +174,9 @@ app.delete('/workouts/:id', requireUser, async (req, res) => {
   }
 
   try {
+    const workoutObjectId = new ObjectId(id)
     const result = await workoutsCollection.deleteOne({
-      _id: new ObjectId(id),
+      _id: workoutObjectId,
       userId: req.userId
     })
 
@@ -181,10 +184,213 @@ app.delete('/workouts/:id', requireUser, async (req, res) => {
       return res.status(404).json({ message: 'Workout not found' })
     }
 
+    await workoutExercisesCollection.deleteMany({ userId: req.userId, workoutId: workoutObjectId })
+
     return res.status(204).end()
   } catch (error) {
     console.error('Delete workout error', error)
     return res.status(500).json({ message: 'Failed to delete workout' })
+  }
+})
+
+async function assertWorkoutOwner(workoutId, userId) {
+  if (!ObjectId.isValid(workoutId)) {
+    const error = new Error('Invalid workout id')
+    error.status = 400
+    throw error
+  }
+
+  const workoutObjectId = new ObjectId(workoutId)
+  const workout = await workoutsCollection.findOne({ _id: workoutObjectId, userId })
+  if (!workout) {
+    const error = new Error('Workout not found')
+    error.status = 404
+    throw error
+  }
+
+  return workoutObjectId
+}
+
+function toLinkResponse(linkDoc, exerciseDoc) {
+  return {
+    linkId: linkDoc._id.toString(),
+    exerciseId: linkDoc.exerciseId.toString(),
+    name: exerciseDoc?.name ?? null,
+    order: linkDoc.order ?? 0
+  }
+}
+
+app.get('/workouts/:workoutId/exercises', requireUser, async (req, res) => {
+  try {
+    const workoutObjectId = await assertWorkoutOwner(req.params.workoutId, req.userId)
+
+    const links = await workoutExercisesCollection
+      .find({ userId: req.userId, workoutId: workoutObjectId })
+      .sort({ order: 1, createdAt: 1 })
+      .toArray()
+
+    const exerciseIds = links.map((link) => link.exerciseId)
+    const exercises = await exercisesCollection
+      .find({ userId: req.userId, _id: { $in: exerciseIds } })
+      .toArray()
+    const exercisesById = new Map(exercises.map((ex) => [ex._id.toString(), ex]))
+
+    return res.json(links.map((link) => toLinkResponse(link, exercisesById.get(link.exerciseId.toString()))))
+  } catch (error) {
+    const status = error.status || 500
+    if (status === 500) {
+      console.error('Get workout exercises error', error)
+    }
+    return res.status(status).json({ message: error.message || 'Failed to fetch exercises' })
+  }
+})
+
+app.post('/workouts/:workoutId/exercises', requireUser, async (req, res) => {
+  try {
+    const workoutObjectId = await assertWorkoutOwner(req.params.workoutId, req.userId)
+
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+    const exerciseId = typeof req.body?.exerciseId === 'string' ? req.body.exerciseId.trim() : ''
+
+    if (!name && !exerciseId) {
+      return res.status(400).json({ message: 'Either name or exerciseId is required' })
+    }
+
+    let exerciseDoc
+
+    if (exerciseId) {
+      if (!ObjectId.isValid(exerciseId)) {
+        return res.status(400).json({ message: 'Invalid exercise id' })
+      }
+      exerciseDoc = await exercisesCollection.findOne({ _id: new ObjectId(exerciseId), userId: req.userId })
+      if (!exerciseDoc) {
+        return res.status(404).json({ message: 'Exercise not found' })
+      }
+    } else {
+      exerciseDoc = await exercisesCollection.findOne({ userId: req.userId, name })
+      if (!exerciseDoc) {
+        const now = new Date()
+        const newExercise = {
+          userId: req.userId,
+          name,
+          createdAt: now
+        }
+        const result = await exercisesCollection.insertOne(newExercise)
+        exerciseDoc = { ...newExercise, _id: result.insertedId }
+      }
+    }
+
+    const lastLink = await workoutExercisesCollection
+      .find({ userId: req.userId, workoutId: workoutObjectId })
+      .sort({ order: -1 })
+      .limit(1)
+      .toArray()
+
+    const nextOrder = lastLink.length > 0 ? (lastLink[0].order ?? 0) + 1 : 0
+    const linkDoc = {
+      userId: req.userId,
+      workoutId: workoutObjectId,
+      exerciseId: exerciseDoc._id,
+      order: nextOrder,
+      createdAt: new Date()
+    }
+
+    try {
+      const linkResult = await workoutExercisesCollection.insertOne(linkDoc)
+      return res.status(201).json(toLinkResponse({ ...linkDoc, _id: linkResult.insertedId }, exerciseDoc))
+    } catch (error) {
+      if (error.code === 11000) {
+        return res.status(409).json({ message: 'Exercise already exists in this workout' })
+      }
+      throw error
+    }
+  } catch (error) {
+    const status = error.status || 500
+    if (status === 500) {
+      console.error('Create workout exercise error', error)
+    }
+    return res.status(status).json({ message: error.message || 'Failed to add exercise' })
+  }
+})
+
+app.put('/workouts/:workoutId/exercises/reorder', requireUser, async (req, res) => {
+  const items = req.body
+
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ message: 'Body must be an array of { linkId, order }' })
+  }
+
+  try {
+    const workoutObjectId = await assertWorkoutOwner(req.params.workoutId, req.userId)
+
+    const linkObjectIds = items.map((item) => {
+      if (!item || typeof item.linkId !== 'string' || !ObjectId.isValid(item.linkId)) {
+        const error = new Error('Invalid linkId')
+        error.status = 400
+        throw error
+      }
+      if (typeof item.order !== 'number' || !Number.isFinite(item.order)) {
+        const error = new Error('Invalid order')
+        error.status = 400
+        throw error
+      }
+      return new ObjectId(item.linkId)
+    })
+
+    const count = await workoutExercisesCollection.countDocuments({
+      _id: { $in: linkObjectIds },
+      userId: req.userId,
+      workoutId: workoutObjectId
+    })
+
+    if (count !== items.length) {
+      return res.status(403).json({ message: 'Some items do not belong to you' })
+    }
+
+    const bulkOps = items.map((item) => ({
+      updateOne: {
+        filter: { _id: new ObjectId(item.linkId), userId: req.userId, workoutId: workoutObjectId },
+        update: { $set: { order: item.order } }
+      }
+    }))
+
+    await workoutExercisesCollection.bulkWrite(bulkOps)
+    return res.status(204).end()
+  } catch (error) {
+    const status = error.status || 500
+    if (status === 500) {
+      console.error('Reorder workout exercises error', error)
+    }
+    return res.status(status).json({ message: error.message || 'Failed to reorder exercises' })
+  }
+})
+
+app.delete('/workouts/:workoutId/exercises/:linkId', requireUser, async (req, res) => {
+  try {
+    const workoutObjectId = await assertWorkoutOwner(req.params.workoutId, req.userId)
+
+    const { linkId } = req.params
+    if (!ObjectId.isValid(linkId)) {
+      return res.status(400).json({ message: 'Invalid link id' })
+    }
+
+    const result = await workoutExercisesCollection.deleteOne({
+      _id: new ObjectId(linkId),
+      userId: req.userId,
+      workoutId: workoutObjectId
+    })
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'Exercise link not found' })
+    }
+
+    return res.status(204).end()
+  } catch (error) {
+    const status = error.status || 500
+    if (status === 500) {
+      console.error('Delete workout exercise error', error)
+    }
+    return res.status(status).json({ message: error.message || 'Failed to remove exercise' })
   }
 })
 
@@ -254,9 +460,17 @@ async function start() {
     const db = client.db(DB_NAME)
     usersCollection = db.collection('users')
     workoutsCollection = db.collection('workouts')
+    exercisesCollection = db.collection('exercises')
+    workoutExercisesCollection = db.collection('workoutExercises')
     await usersCollection.createIndex({ email: 1 }, { unique: true })
     await workoutsCollection.createIndex({ userId: 1, createdAt: -1 })
     await workoutsCollection.createIndex({ userId: 1, name: 1 }, { unique: true })
+    await exercisesCollection.createIndex({ userId: 1, name: 1 })
+    await workoutExercisesCollection.createIndex({ userId: 1, workoutId: 1, order: 1 })
+    await workoutExercisesCollection.createIndex(
+      { userId: 1, workoutId: 1, exerciseId: 1 },
+      { unique: true }
+    )
 
     app.listen(PORT, () => {
       console.log(`API listening on http://localhost:${PORT}`)

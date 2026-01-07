@@ -14,7 +14,15 @@ import {
   rectSortingStrategy
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { createWorkout, fetchWorkouts, getStoredUser, reorderWorkouts } from '../lib/apiClient'
+import {
+  addWorkoutExercise,
+  createWorkout,
+  fetchWorkoutExercises,
+  fetchWorkouts,
+  getStoredUser,
+  reorderWorkoutExercises,
+  reorderWorkouts
+} from '../lib/apiClient'
 import './Stats.css'
 
 function StatsPage() {
@@ -65,6 +73,15 @@ function WorkoutBoard({ user }) {
   const [isSavingWorkout, setIsSavingWorkout] = useState(false)
   const [isReordering, setIsReordering] = useState(false)
 
+  const [selectedWorkoutId, setSelectedWorkoutId] = useState(null)
+  const [exerciseLinks, setExerciseLinks] = useState([])
+  const [isLoadingExercises, setIsLoadingExercises] = useState(false)
+  const [exercisesError, setExercisesError] = useState('')
+  const [isAddingExercise, setIsAddingExercise] = useState(false)
+  const [newExerciseName, setNewExerciseName] = useState('')
+  const [isSavingExercise, setIsSavingExercise] = useState(false)
+  const [isReorderingExercises, setIsReorderingExercises] = useState(false)
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -83,6 +100,15 @@ function WorkoutBoard({ user }) {
       setIsLoadingWorkouts(false)
       setIsSavingWorkout(false)
       setIsReordering(false)
+
+      setSelectedWorkoutId(null)
+      setExerciseLinks([])
+      setIsLoadingExercises(false)
+      setExercisesError('')
+      setIsAddingExercise(false)
+      setNewExerciseName('')
+      setIsSavingExercise(false)
+      setIsReorderingExercises(false)
       return
     }
 
@@ -111,6 +137,68 @@ function WorkoutBoard({ user }) {
       ignore = true
     }
   }, [user])
+
+  useEffect(() => {
+    if (!selectedWorkoutId) {
+      return
+    }
+
+    // If the selected workout was deleted, close the panel.
+    if (!workouts.some((w) => w._id === selectedWorkoutId)) {
+      setSelectedWorkoutId(null)
+      setExerciseLinks([])
+      setExercisesError('')
+      setIsAddingExercise(false)
+      setNewExerciseName('')
+    }
+  }, [selectedWorkoutId, workouts])
+
+  const selectedWorkout = useMemo(() => {
+    if (!selectedWorkoutId) {
+      return null
+    }
+    return workouts.find((w) => w._id === selectedWorkoutId) || null
+  }, [selectedWorkoutId, workouts])
+
+  const loadExercises = useCallback(async (workoutId) => {
+    setIsLoadingExercises(true)
+    setExercisesError('')
+    try {
+      const data = await fetchWorkoutExercises(workoutId)
+      setExerciseLinks(data)
+    } catch (error) {
+      setExercisesError(error.message)
+      setExerciseLinks([])
+    } finally {
+      setIsLoadingExercises(false)
+    }
+  }, [])
+
+  const handleSelectWorkout = useCallback(
+    async (workoutId) => {
+      if (!user) {
+        return
+      }
+
+      setExercisesError('')
+      setIsAddingExercise(false)
+      setNewExerciseName('')
+
+      setSelectedWorkoutId((prev) => {
+        const next = prev === workoutId ? null : workoutId
+        return next
+      })
+
+      // We can't rely on setState above being applied synchronously; decide based on current selectedWorkoutId.
+      const willOpen = selectedWorkoutId !== workoutId
+      if (willOpen) {
+        await loadExercises(workoutId)
+      } else {
+        setExerciseLinks([])
+      }
+    },
+    [loadExercises, selectedWorkoutId, user]
+  )
 
   const handleShowForm = useCallback(() => {
     if (!user) {
@@ -179,6 +267,86 @@ function WorkoutBoard({ user }) {
     }
   }, [workouts])
 
+  const handleExercisesDragEnd = useCallback(
+    async (event) => {
+      const { active, over } = event
+
+      if (!selectedWorkoutId) {
+        return
+      }
+
+      if (!over || active.id === over.id) {
+        return
+      }
+
+      const oldIndex = exerciseLinks.findIndex((item) => item.linkId === active.id)
+      const newIndex = exerciseLinks.findIndex((item) => item.linkId === over.id)
+
+      if (oldIndex === -1 || newIndex === -1) {
+        return
+      }
+
+      const reordered = arrayMove(exerciseLinks, oldIndex, newIndex)
+      setExerciseLinks(reordered)
+
+      setIsReorderingExercises(true)
+      setExercisesError('')
+      try {
+        const payload = reordered.map((item, index) => ({ linkId: item.linkId, order: index }))
+        await reorderWorkoutExercises(selectedWorkoutId, payload)
+      } catch (error) {
+        setExercisesError(error.message)
+        await loadExercises(selectedWorkoutId)
+      } finally {
+        setIsReorderingExercises(false)
+      }
+    },
+    [exerciseLinks, loadExercises, selectedWorkoutId]
+  )
+
+  const handleShowExerciseForm = useCallback(() => {
+    if (!user || !selectedWorkoutId) {
+      return
+    }
+    setIsAddingExercise(true)
+    setNewExerciseName('')
+    setExercisesError('')
+  }, [selectedWorkoutId, user])
+
+  const handleCancelExerciseForm = useCallback(() => {
+    setIsAddingExercise(false)
+    setNewExerciseName('')
+  }, [])
+
+  const handleCreateExercise = useCallback(
+    async (event) => {
+      event.preventDefault()
+      if (!selectedWorkoutId) {
+        return
+      }
+
+      const trimmed = newExerciseName.trim()
+      if (!trimmed) {
+        setExercisesError('Ange ett namn på övningen')
+        return
+      }
+
+      setIsSavingExercise(true)
+      setExercisesError('')
+      try {
+        const created = await addWorkoutExercise(selectedWorkoutId, { name: trimmed })
+        setExerciseLinks((prev) => [...prev, created])
+        setIsAddingExercise(false)
+        setNewExerciseName('')
+      } catch (error) {
+        setExercisesError(error.message)
+      } finally {
+        setIsSavingExercise(false)
+      }
+    },
+    [newExerciseName, selectedWorkoutId]
+  )
+
   const formatWorkoutDate = useCallback((value) => {
     if (!value) {
       return ''
@@ -213,6 +381,8 @@ function WorkoutBoard({ user }) {
                 key={workout._id}
                 workout={workout}
                 formatWorkoutDate={formatWorkoutDate}
+                onSelect={handleSelectWorkout}
+                isSelected={workout._id === selectedWorkoutId}
               />
             ))}
           </SortableContext>
@@ -228,6 +398,74 @@ function WorkoutBoard({ user }) {
           <span aria-hidden="true">+</span>
         </button>
       </div>
+
+      {selectedWorkout && (
+        <section className="exercises-panel" aria-label="Övningar">
+          <div className="exercises-panel__header">
+            <h3>Övningar</h3>
+            <p className="exercises-panel__subtitle">{selectedWorkout.name}</p>
+          </div>
+
+          {isLoadingExercises && (
+            <p className="pass-menu__message">Laddar övningar...</p>
+          )}
+
+          {!isLoadingExercises && (
+            <div className="exercises-panel__list">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleExercisesDragEnd}
+              >
+                <SortableContext items={exerciseLinks.map((item) => item.linkId)} strategy={rectSortingStrategy}>
+                  {exerciseLinks.map((item) => (
+                    <SortableExerciseRow key={item.linkId} item={item} />
+                  ))}
+                </SortableContext>
+              </DndContext>
+
+              {isAddingExercise ? (
+                <form className="exercise-add" onSubmit={handleCreateExercise}>
+                  <input
+                    type="text"
+                    value={newExerciseName}
+                    onChange={(event) => setNewExerciseName(event.target.value)}
+                    placeholder="Ny övning"
+                    maxLength={60}
+                    autoFocus
+                  />
+                  <div className="exercise-add__actions">
+                    <button type="submit" className="exercise-add__primary" disabled={isSavingExercise}>
+                      {isSavingExercise ? 'Sparar...' : 'Spara'}
+                    </button>
+                    <button type="button" className="exercise-add__secondary" onClick={handleCancelExerciseForm} disabled={isSavingExercise}>
+                      Avbryt
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  className="exercise-row exercise-row--add"
+                  onClick={handleShowExerciseForm}
+                  disabled={!user || isReorderingExercises || isReordering}
+                  aria-label="Lägg till ny övning"
+                >
+                  <span aria-hidden="true">+</span>
+                </button>
+              )}
+
+              {isReorderingExercises && (
+                <p className="pass-menu__message">Sparar ordning...</p>
+              )}
+
+              {exercisesError && (
+                <p className="pass-menu__message pass-menu__message--error">{exercisesError}</p>
+              )}
+            </div>
+          )}
+        </section>
+      )}
 
       {!user && (
         <p className="pass-menu__message">Du måste logga in för att skapa pass.</p>
@@ -271,7 +509,7 @@ function WorkoutBoard({ user }) {
   )
 }
 
-function SortableWorkoutTile({ workout, formatWorkoutDate }) {
+function SortableWorkoutTile({ workout, formatWorkoutDate, onSelect, isSelected }) {
   const {
     attributes,
     listeners,
@@ -324,7 +562,16 @@ function SortableWorkoutTile({ workout, formatWorkoutDate }) {
     <div
       ref={setNodeRef}
       style={style}
-      className={`pass-tile pass-tile--saved ${isDragging ? 'pass-tile--dragging' : ''}`}
+      className={`pass-tile pass-tile--saved ${isSelected ? 'pass-tile--selected' : ''} ${isDragging ? 'pass-tile--dragging' : ''}`}
+      role="button"
+      tabIndex={0}
+      onClick={() => onSelect?.(workout._id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          onSelect?.(workout._id)
+        }
+      }}
     >
       <div className="pass-tile__content">
         <h3>{workout.name}</h3>
@@ -336,6 +583,7 @@ function SortableWorkoutTile({ workout, formatWorkoutDate }) {
         type="button"
         className="pass-tile__grip"
         aria-label="Dra för att sortera"
+        onClick={(event) => event.stopPropagation()}
         {...attributes}
         {...listeners}
       >
@@ -351,6 +599,51 @@ function SortableWorkoutTile({ workout, formatWorkoutDate }) {
           <circle cx="12" cy="13" r="1.5" />
         </svg>
       </button>
+    </div>
+  )
+}
+
+function SortableExerciseRow({ item }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: item.linkId })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: isDragging ? 'none' : transition
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`exercise-row ${isDragging ? 'exercise-row--dragging' : ''}`}
+    >
+      <button
+        type="button"
+        className="exercise-row__grip"
+        aria-label="Dra för att sortera"
+        {...attributes}
+        {...listeners}
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <circle cx="4" cy="3" r="1.5" />
+          <circle cx="8" cy="3" r="1.5" />
+          <circle cx="12" cy="3" r="1.5" />
+          <circle cx="4" cy="8" r="1.5" />
+          <circle cx="8" cy="8" r="1.5" />
+          <circle cx="12" cy="8" r="1.5" />
+          <circle cx="4" cy="13" r="1.5" />
+          <circle cx="8" cy="13" r="1.5" />
+          <circle cx="12" cy="13" r="1.5" />
+        </svg>
+      </button>
+      <div className="exercise-row__name">{item.name}</div>
     </div>
   )
 }
