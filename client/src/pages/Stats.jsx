@@ -281,9 +281,43 @@ function SortableWorkoutTile({ workout, formatWorkoutDate }) {
     isDragging
   } = useSortable({ id: workout._id })
 
+  const { titleFontSize, titleLetterSpacing } = useMemo(() => {
+    const charCount = Array.from(workout.name ?? '').length
+
+    if (charCount === 0) {
+      return { titleFontSize: '1.55rem', titleLetterSpacing: '0.02em' }
+    }
+
+    let fontSize = '1.55rem'
+    if (charCount >= 18) {
+      fontSize = '1.05rem'
+    } else if (charCount >= 14) {
+      fontSize = '1.15rem'
+    } else if (charCount >= 10) {
+      fontSize = '1.25rem'
+    } else if (charCount >= 7) {
+      fontSize = '1.3rem'
+    } else if (charCount >= 6) {
+      fontSize = '1.4rem'
+    } else if (charCount >= 5) {
+      fontSize = '1.5rem'
+    }
+
+    let letterSpacing = '0.02em'
+    if (charCount >= 12) {
+      letterSpacing = '0.01em'
+    } else if (charCount >= 6) {
+      letterSpacing = '0.015em'
+    }
+
+    return { titleFontSize: fontSize, titleLetterSpacing: letterSpacing }
+  }, [workout.name])
+
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition: isDragging ? 'none' : transition
+    transition: isDragging ? 'none' : transition,
+    '--pass-title-size': titleFontSize,
+    '--pass-title-spacing': titleLetterSpacing
   }
 
   return (
