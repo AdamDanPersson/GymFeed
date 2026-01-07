@@ -6,7 +6,7 @@ import './Home.css'
 function HomePage() {
   return (
     <section className="landing-screen" aria-label="Välj arbetsläge">
-      <Link to="/projekt" className="landing-panel landing-panel--flow">
+      <Link to="/flow" className="landing-panel landing-panel--flow">
         <img src={flowMark} alt="Flow logotyp" />
         <span>Flow</span>
       </Link>
