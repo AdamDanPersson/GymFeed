@@ -1,0 +1,80 @@
+.global-nav {
+  --nav-collapsed-height: 12px;
+  --nav-expanded-height: clamp(70px, 15vw, 110px);
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 100%;
+  display: flex;
+  border-bottom: 1px solid rgba(8, 8, 8, 0.2);
+  box-shadow: 0 10px 5px rgba(0, 0, 0, 0.2);
+  z-index: 50;
+  height: var(--nav-collapsed-height);
+  overflow: hidden;
+  transition: height 220ms ease;
+}
+
+.global-nav:hover {
+  height: var(--nav-expanded-height);
+}
+
+.nav-link {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.2rem 0;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+  position: relative;
+}
+
+.nav-link img {
+  width: clamp(36px, 6vw, 56px);
+  height: auto;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+.global-nav:hover .nav-link img {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.nav-link--flow {
+  background: #ff6d1f;
+}
+
+.nav-link--stats {
+  background: #222222;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  inset: 0.5rem;
+  border-radius: 1rem;
+}
+
+.nav-link:hover {
+  transform: translateY(-4px);
+}
+
+.nav-link.is-active::after {
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.nav-link--stats.is-active::after {
+  border-color: rgba(245, 231, 198, 0.6);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
