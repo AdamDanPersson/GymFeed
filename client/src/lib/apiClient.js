@@ -90,4 +90,12 @@ export function deleteWorkout(workoutId) {
   })
 }
 
+export function reorderWorkouts(workoutIds) {
+  return request('/workouts/reorder', {
+    method: 'PUT',
+    body: JSON.stringify({ workoutIds }),
+    requireUser: true
+  })
+}
+
 export { getStoredUser, getStoredUserId }

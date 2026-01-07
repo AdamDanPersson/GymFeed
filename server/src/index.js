@@ -117,7 +117,7 @@ app.get('/workouts', requireUser, async (req, res) => {
   try {
     const docs = await workoutsCollection
       .find({ userId: req.userId })
-      .sort({ createdAt: -1 })
+      .sort({ order: 1, createdAt: -1 })
       .toArray()
 
     return res.json(docs.map(serializeWorkout))
@@ -134,15 +134,25 @@ app.post('/workouts', requireUser, async (req, res) => {
     return res.status(400).json({ message: 'Workout name is required' })
   }
 
-  const now = new Date()
-  const doc = {
-    userId: req.userId,
-    name,
-    createdAt: now,
-    updatedAt: now
-  }
-
   try {
+    // Get the highest order value for this user
+    const lastWorkout = await workoutsCollection
+      .find({ userId: req.userId })
+      .sort({ order: -1 })
+      .limit(1)
+      .toArray()
+    
+    const nextOrder = lastWorkout.length > 0 ? (lastWorkout[0].order ?? 0) + 1 : 0
+
+    const now = new Date()
+    const doc = {
+      userId: req.userId,
+      name,
+      order: nextOrder,
+      createdAt: now,
+      updatedAt: now
+    }
+
     const result = await workoutsCollection.insertOne(doc)
     return res.status(201).json(serializeWorkout({ ...doc, _id: result.insertedId }))
   } catch (error) {
@@ -178,10 +188,60 @@ app.delete('/workouts/:id', requireUser, async (req, res) => {
   }
 })
 
+app.put('/workouts/reorder', requireUser, async (req, res) => {
+  const { workoutIds } = req.body
+
+  if (!Array.isArray(workoutIds) || workoutIds.length === 0) {
+    return res.status(400).json({ message: 'workoutIds array is required' })
+  }
+
+  // Validate all IDs
+  const objectIds = workoutIds.map(id => {
+    if (!ObjectId.isValid(id)) {
+      throw new Error(`Invalid workout ID: ${id}`)
+    }
+    return new ObjectId(id)
+  })
+
+  try {
+    // Verify all workouts belong to the user
+    const count = await workoutsCollection.countDocuments({
+      _id: { $in: objectIds },
+      userId: req.userId
+    })
+
+    if (count !== workoutIds.length) {
+      return res.status(403).json({ message: 'Some workouts do not belong to you' })
+    }
+
+    // Update order for each workout
+    const bulkOps = workoutIds.map((id, index) => ({
+      updateOne: {
+        filter: { _id: new ObjectId(id) },
+        update: { $set: { order: index } }
+      }
+    }))
+
+    await workoutsCollection.bulkWrite(bulkOps)
+
+    // Return updated workouts
+    const updatedWorkouts = await workoutsCollection
+      .find({ userId: req.userId })
+      .sort({ order: 1, createdAt: -1 })
+      .toArray()
+
+    return res.json(updatedWorkouts.map(serializeWorkout))
+  } catch (error) {
+    console.error('Reorder workouts error', error)
+    return res.status(500).json({ message: 'Failed to reorder workouts' })
+  }
+})
+
 function serializeWorkout(doc) {
   return {
     _id: doc._id.toString(),
     name: doc.name,
+    order: doc.order ?? 0,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt || doc.createdAt
   }
