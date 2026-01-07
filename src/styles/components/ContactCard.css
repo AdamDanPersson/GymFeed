@@ -1,0 +1,34 @@
+.contact-card {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.5rem;
+  background: rgba(10, 19, 40, 0.75);
+  padding: 1.75rem;
+  border-radius: 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.contact-card ul {
+  padding-left: 1.15rem;
+  margin: 0.5rem 0 0;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.contact-card li {
+  margin-bottom: 0.35rem;
+}
+
+.contact-actions button {
+  background: #4dd0e1;
+  color: #081128;
+  font-weight: 600;
+  border-radius: 999px;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  cursor: pointer;
+  transition: transform 150ms ease;
+}
+
+.contact-actions button:hover {
+  transform: translateY(-2px);
+}
