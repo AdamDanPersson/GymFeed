@@ -1,7 +1,7 @@
 import cors from 'cors'
 import dotenv from 'dotenv'
 import express from 'express'
-import { MongoClient } from 'mongodb'
+import { MongoClient, ObjectId } from 'mongodb'
 
 dotenv.config()
 
@@ -18,6 +18,7 @@ app.use(cors())
 app.use(express.json())
 
 let usersCollection
+let workoutsCollection
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
@@ -56,7 +57,7 @@ app.post('/auth/register', async (req, res) => {
   try {
     const result = await usersCollection.insertOne(userDoc)
     return res.status(201).json({
-      userId: result.insertedId,
+      userId: result.insertedId.toString(),
       email: normalizedEmail,
       firstName: trimmedFirstName,
       lastName: trimmedLastName,
@@ -89,7 +90,7 @@ app.post('/auth/login', async (req, res) => {
     const responseFullName = user.fullName || user.name || null
 
     return res.json({
-      userId: user._id,
+      userId: user._id.toString(),
       email: user.email,
       firstName: user.firstName || null,
       lastName: user.lastName || null,
@@ -101,13 +102,101 @@ app.post('/auth/login', async (req, res) => {
   }
 })
 
+function requireUser(req, res, next) {
+  const userIdHeader = req.header('x-user-id')?.trim()
+
+  if (!userIdHeader || !ObjectId.isValid(userIdHeader)) {
+    return res.status(401).json({ message: 'User authentication required' })
+  }
+
+  req.userId = new ObjectId(userIdHeader)
+  next()
+}
+
+app.get('/workouts', requireUser, async (req, res) => {
+  try {
+    const docs = await workoutsCollection
+      .find({ userId: req.userId })
+      .sort({ createdAt: -1 })
+      .toArray()
+
+    return res.json(docs.map(serializeWorkout))
+  } catch (error) {
+    console.error('Get workouts error', error)
+    return res.status(500).json({ message: 'Failed to fetch workouts' })
+  }
+})
+
+app.post('/workouts', requireUser, async (req, res) => {
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+
+  if (!name) {
+    return res.status(400).json({ message: 'Workout name is required' })
+  }
+
+  const now = new Date()
+  const doc = {
+    userId: req.userId,
+    name,
+    createdAt: now,
+    updatedAt: now
+  }
+
+  try {
+    const result = await workoutsCollection.insertOne(doc)
+    return res.status(201).json(serializeWorkout({ ...doc, _id: result.insertedId }))
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(409).json({ message: 'Workout name already exists' })
+    }
+    console.error('Create workout error', error)
+    return res.status(500).json({ message: 'Failed to create workout' })
+  }
+})
+
+app.delete('/workouts/:id', requireUser, async (req, res) => {
+  const { id } = req.params
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: 'Invalid workout id' })
+  }
+
+  try {
+    const result = await workoutsCollection.deleteOne({
+      _id: new ObjectId(id),
+      userId: req.userId
+    })
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: 'Workout not found' })
+    }
+
+    return res.status(204).end()
+  } catch (error) {
+    console.error('Delete workout error', error)
+    return res.status(500).json({ message: 'Failed to delete workout' })
+  }
+})
+
+function serializeWorkout(doc) {
+  return {
+    _id: doc._id.toString(),
+    name: doc.name,
+    createdAt: doc.createdAt,
+    updatedAt: doc.updatedAt || doc.createdAt
+  }
+}
+
 async function start() {
   try {
     const client = new MongoClient(MONGODB_URI)
     await client.connect()
     const db = client.db(DB_NAME)
     usersCollection = db.collection('users')
+    workoutsCollection = db.collection('workouts')
     await usersCollection.createIndex({ email: 1 }, { unique: true })
+    await workoutsCollection.createIndex({ userId: 1, createdAt: -1 })
+    await workoutsCollection.createIndex({ userId: 1, name: 1 }, { unique: true })
 
     app.listen(PORT, () => {
       console.log(`API listening on http://localhost:${PORT}`)
