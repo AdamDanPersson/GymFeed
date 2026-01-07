@@ -1,0 +1,119 @@
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(2rem, 6vw, 4rem);
+  text-transform: uppercase;
+}
+
+.auth-page--login {
+  background: #ff6d1f;
+  color: #222222;
+}
+
+.auth-card {
+  width: min(480px, 100%);
+  background: rgba(250, 243, 225, 0.95);
+  border-radius: 2rem;
+  padding: clamp(2rem, 4vw, 3.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  box-shadow: 0 25px 65px rgba(151, 72, 12, 0.35);
+  text-transform: none;
+}
+
+.auth-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  font-size: 0.75rem;
+  color: rgba(34, 34, 34, 0.75);
+}
+
+.auth-card h1 {
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  margin: 0;
+}
+
+.auth-lede {
+  margin: 0;
+  color: rgba(34, 34, 34, 0.8);
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.auth-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.auth-form input {
+  border: 1px solid rgba(34, 34, 34, 0.3);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.9rem 1.1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  color: #222222;
+}
+
+.auth-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+}
+
+.auth-actions button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.85rem 1.8rem;
+  background: #222222;
+  color: #faf3e1;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: transform 150ms ease;
+}
+
+.auth-actions button:hover {
+  transform: translateY(-2px);
+}
+
+.auth-meta {
+  margin: 0;
+  font-size: 0.95rem;
+  letter-spacing: 0.05em;
+  color: rgba(34, 34, 34, 0.8);
+}
+
+.auth-meta a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+@media (max-width: 480px) {
+  .auth-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .auth-actions button {
+    width: 100%;
+  }
+}
