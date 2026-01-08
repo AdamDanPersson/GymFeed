@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import {
   DndContext,
@@ -25,6 +25,7 @@ import {
   fetchWorkoutExercises,
   fetchWorkouts,
   getStoredUser,
+  getStoredUserId,
   moveWorkoutExercise,
   renameWorkout,
   reorderWorkoutExercises,
@@ -34,28 +35,44 @@ import {
   getExerciseSets,
   getMonthlyVisits,
   fetchExercises,
-  createPost
+  createPost,
+  fetchPosts,
+  deletePost,
+  fetchPostChartData,
+  fetchComments,
+  addComment,
+  deleteComment
 } from '../lib/apiClient'
 import './Stats.css'
 
 function StatsPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const initialUser = useMemo(() => getStoredUser(), [])
 
   const [user, setUser] = useState(initialUser)
+  
+  // Check if we should open post creator from navigation
+  const openPostCreator = location.state?.openPostCreator || false
 
-  const handleLogout = useCallback(() => {
-    localStorage.removeItem('user')
-    setUser(null)
-    navigate('/login')
-  }, [navigate])
+  // Clear the state after reading it
+  useEffect(() => {
+    if (location.state?.openPostCreator) {
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+  }, [location.state, location.pathname, navigate])
 
   return (
     <main className="stats-page" aria-labelledby="stats-heading">
-      <StatsCard user={user} onLogout={handleLogout} />
+      {user && (
+        <h1 className="stats-welcome" id="stats-heading">
+          Välkommen,<br />
+          {user.firstName} {user.lastName}
+        </h1>
+      )}
       <MonthlyVisitsChart user={user} />
       <WorkoutBoard user={user} />
-      <PostBoard user={user} />
+      <PostBoard user={user} openPostCreator={openPostCreator} />
     </main>
   )
 }
@@ -164,23 +181,7 @@ const MonthlyVisitsChart = memo(function MonthlyVisitsChart({ user }) {
   )
 })
 
-const StatsCard = memo(function StatsCard({ user, onLogout }) {
-  return (
-    <div className="stats-card">
-      <p className="stats-eyebrow">Stats</p>
-      <h1 id="stats-heading">Du är på profilsidan</h1>
-      <p>Den här ytan reserveras för framtida statistik och profilkomponenter.</p>
-      <p className="stats-status">
-        {user ? `Inloggad som ${user.email}` : 'Inte inloggad'}
-      </p>
-      {user && (
-        <button type="button" className="stats-logout" onClick={onLogout}>
-          Logga ut
-        </button>
-      )}
-    </div>
-  )
-})
+
 
 function WorkoutBoard({ user }) {
   const [workouts, setWorkouts] = useState([])
@@ -2199,9 +2200,22 @@ function MoveDialog({ workouts, currentWorkoutId, value, onChange, onConfirm, on
 }
 
 // PostBoard Component - UI placeholder for posts
-function PostBoard({ user }) {
+function PostBoard({ user, openPostCreator }) {
   const [posts, setPosts] = useState([])
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true)
   const [isCreatingPost, setIsCreatingPost] = useState(false)
+  const postBoardRef = useRef(null)
+
+  // Open post creator and scroll to section when triggered from navigation
+  useEffect(() => {
+    if (openPostCreator && user) {
+      setIsCreatingPost(true)
+      // Scroll to post section
+      setTimeout(() => {
+        postBoardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [openPostCreator, user])
   const [postType, setPostType] = useState('graph') // 'graph' or 'image'
   const [postTitle, setPostTitle] = useState('')
   const [postDescription, setPostDescription] = useState('')
@@ -2220,6 +2234,51 @@ function PostBoard({ user }) {
   const [previewData, setPreviewData] = useState([])
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [availableDates, setAvailableDates] = useState([])
+  
+  // Selected post for viewing
+  const [selectedPost, setSelectedPost] = useState(null)
+  const [selectedPostChartData, setSelectedPostChartData] = useState([])
+  const [isLoadingSelectedPost, setIsLoadingSelectedPost] = useState(false)
+  const selectedPostRef = useRef(null)
+  
+  // Comments for selected post
+  const [comments, setComments] = useState([])
+  const [showComments, setShowComments] = useState(false)
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
+  const [commentText, setCommentText] = useState('')
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+
+  const userId = useMemo(() => getStoredUserId(), [])
+
+  // Fetch user's posts
+  useEffect(() => {
+    if (!userId) {
+      setIsLoadingPosts(false)
+      return
+    }
+
+    let ignore = false
+    setIsLoadingPosts(true)
+
+    fetchPosts({ limit: 50, userId })
+      .then((data) => {
+        if (!ignore) {
+          setPosts(data.items || [])
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch posts:', err)
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoadingPosts(false)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [userId])
 
   // Calculate date presets
   const applyDatePreset = useCallback((preset) => {
@@ -2504,6 +2563,9 @@ function PostBoard({ user }) {
 
       console.log('Post created:', newPost)
       
+      // Add new post to list
+      setPosts(prev => [newPost, ...prev])
+      
       // Reset form
       setPostTitle('')
       setPostDescription('')
@@ -2513,8 +2575,6 @@ function PostBoard({ user }) {
       applyDatePreset('30d')
       setIsCreatingPost(false)
       
-      // Show success (post will appear in Flow)
-      alert('Post skapad! Den syns nu i Flow.')
     } catch (err) {
       console.error('Failed to create post:', err)
       setError(err.message || 'Något gick fel')
@@ -2537,9 +2597,211 @@ function PostBoard({ user }) {
     setIsCreatingPost(false)
   }, [applyDatePreset])
 
+  const handleDeletePost = useCallback(async (postId) => {
+    if (!confirm('Är du säker på att du vill ta bort denna post?')) return
+
+    try {
+      await deletePost(postId)
+      setPosts(prev => prev.filter(p => p._id !== postId))
+      // Clear selection if deleted post was selected
+      if (selectedPost?._id === postId) {
+        setSelectedPost(null)
+        setSelectedPostChartData([])
+      }
+    } catch (err) {
+      console.error('Failed to delete post:', err)
+      alert('Kunde inte ta bort posten: ' + err.message)
+    }
+  }, [selectedPost])
+
+  const handleSelectPost = useCallback(async (post) => {
+    // Toggle off if same post is clicked
+    if (selectedPost?._id === post._id) {
+      setSelectedPost(null)
+      setSelectedPostChartData([])
+      return
+    }
+
+    setSelectedPost(post)
+    setIsLoadingSelectedPost(true)
+    setSelectedPostChartData([])
+
+    try {
+      const data = await fetchPostChartData(post._id)
+      
+      if (data.groups && data.groups.length > 0) {
+        // Calculate chart data from groups
+        let filteredGroups = data.groups
+
+        if (post.dateMode === 'twoDays' && post.specificDates && post.specificDates.length === 2) {
+          // Filter to only include the two specific dates
+          filteredGroups = data.groups.filter(group => {
+            const groupDateStr = new Date(group.date).toISOString().split('T')[0]
+            return post.specificDates.includes(groupDateStr)
+          })
+        } else if (post.dateRange) {
+          // Filter by date range
+          const fromDateStr = post.dateRange.from?.split('T')[0]
+          const toDateStr = post.dateRange.to?.split('T')[0]
+          
+          if (fromDateStr && toDateStr) {
+            filteredGroups = data.groups.filter(group => {
+              const groupDateStr = new Date(group.date).toISOString().split('T')[0]
+              return groupDateStr >= fromDateStr && groupDateStr <= toDateStr
+            })
+          }
+        }
+
+        // Sort by date ascending
+        const sortedGroups = [...filteredGroups].sort((a, b) => 
+          new Date(a.date) - new Date(b.date)
+        )
+
+        let chartData = []
+        const metric = post.metric || 'maxWeight'
+
+        switch (metric) {
+          case 'maxWeight':
+            chartData = sortedGroups.map((group) => {
+              const maxWeight = Math.max(...group.sets.map(s => parseFloat(s.weight) || 0))
+              const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
+              return { date, value: maxWeight }
+            })
+            break
+
+          case 'totalVolume':
+            chartData = sortedGroups.map((group) => {
+              const volume = group.sets.reduce((sum, set) => {
+                const w = parseFloat(set.weight) || 0
+                const r = parseInt(set.reps) || 0
+                return sum + (w * r)
+              }, 0)
+              const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
+              return { date, value: Math.round(volume) }
+            })
+            break
+
+          case 'e1rm':
+            chartData = sortedGroups.map((group) => {
+              const e1rmValues = group.sets.map(s => {
+                const w = parseFloat(s.weight) || 0
+                const r = parseInt(s.reps) || 0
+                if (w === 0 || r === 0) return 0
+                return w * (1 + r / 30)
+              })
+              const maxE1rm = Math.max(...e1rmValues)
+              const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
+              return { date, value: Math.round(maxE1rm * 10) / 10 }
+            })
+            break
+
+          case 'setCount':
+            chartData = sortedGroups.map((group) => {
+              const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
+              return { date, value: group.sets.length }
+            })
+            break
+
+          default:
+            chartData = []
+        }
+
+        setSelectedPostChartData(chartData)
+      } else {
+        setSelectedPostChartData([])
+      }
+    } catch (err) {
+      console.error('Failed to fetch chart data:', err)
+      setSelectedPostChartData([])
+    } finally {
+      setIsLoadingSelectedPost(false)
+    }
+  }, [selectedPost])
+
+  // Scroll to selected post preview
+  useEffect(() => {
+    if (selectedPost && selectedPostRef.current) {
+      setTimeout(() => {
+        selectedPostRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [selectedPost])
+
+  // Reset comments when selecting a different post
+  useEffect(() => {
+    setComments([])
+    setShowComments(false)
+    setCommentText('')
+  }, [selectedPost?._id])
+
+  // Toggle comments section
+  const handleToggleComments = useCallback(async () => {
+    if (!selectedPost) return
+
+    if (!showComments) {
+      setShowComments(true)
+      setIsLoadingComments(true)
+      try {
+        const data = await fetchComments(selectedPost._id)
+        setComments(data.comments || [])
+      } catch (err) {
+        console.error('Failed to fetch comments:', err)
+      } finally {
+        setIsLoadingComments(false)
+      }
+    } else {
+      setShowComments(false)
+    }
+  }, [selectedPost, showComments])
+
+  // Submit comment
+  const handleSubmitComment = useCallback(async (e) => {
+    e.preventDefault()
+    if (!commentText.trim() || isSubmittingComment || !selectedPost || !userId) return
+
+    setIsSubmittingComment(true)
+    try {
+      const newComment = await addComment(selectedPost._id, commentText.trim())
+      setComments(prev => [...prev, newComment])
+      setCommentText('')
+      // Update comment count in the post
+      setPosts(prev => prev.map(p => 
+        p._id === selectedPost._id 
+          ? { ...p, commentCount: (p.commentCount || 0) + 1 }
+          : p
+      ))
+      setSelectedPost(prev => prev ? { ...prev, commentCount: (prev.commentCount || 0) + 1 } : null)
+    } catch (err) {
+      console.error('Failed to add comment:', err)
+      alert('Kunde inte lägga till kommentar: ' + err.message)
+    } finally {
+      setIsSubmittingComment(false)
+    }
+  }, [selectedPost, commentText, isSubmittingComment, userId])
+
+  // Delete comment
+  const handleDeleteComment = useCallback(async (commentId) => {
+    if (!selectedPost) return
+
+    try {
+      await deleteComment(selectedPost._id, commentId)
+      setComments(prev => prev.filter(c => c._id !== commentId))
+      // Update comment count
+      setPosts(prev => prev.map(p => 
+        p._id === selectedPost._id 
+          ? { ...p, commentCount: Math.max(0, (p.commentCount || 0) - 1) }
+          : p
+      ))
+      setSelectedPost(prev => prev ? { ...prev, commentCount: Math.max(0, (prev.commentCount || 0) - 1) } : null)
+    } catch (err) {
+      console.error('Failed to delete comment:', err)
+      alert('Kunde inte ta bort kommentar: ' + err.message)
+    }
+  }, [selectedPost])
+
   if (!user) {
     return (
-      <section className="pass-menu" aria-label="Post">
+      <section ref={postBoardRef} className="pass-menu" aria-label="Post">
         <h2>Post</h2>
         <p className="pass-menu__message">Du måste logga in för att skapa poster.</p>
       </section>
@@ -2547,54 +2809,61 @@ function PostBoard({ user }) {
   }
 
   return (
-    <section className="pass-menu" aria-label="Post">
+    <section ref={postBoardRef} className="pass-menu" aria-label="Post">
       <h2>Post</h2>
       <div className="pass-menu__board pass-menu__board--post">
-        {posts.length === 0 && !isCreatingPost && (
+        {isLoadingPosts ? (
+          <p className="pass-menu__loading">Laddar poster...</p>
+        ) : posts.length === 0 && !isCreatingPost ? (
           <p className="pass-menu__empty">Inga poster ännu</p>
-        )}
+        ) : null}
 
         {/* Post tiles */}
         {posts.map((post) => (
           <div
             key={post._id}
-            className="pass-tile pass-tile--saved"
-            role="button"
-            tabIndex={0}
+            className={`pass-tile pass-tile--saved pass-tile--post ${selectedPost?._id === post._id ? 'pass-tile--selected' : ''}`}
+            onClick={() => handleSelectPost(post)}
+            style={{ cursor: 'pointer' }}
           >
             <div className="pass-tile__content">
               <h3>{post.title}</h3>
-              <time dateTime={post.createdAt}>
-                {formatPostDate(post.createdAt)}
-              </time>
+              <span className="pass-tile__exercise">{post.exerciseName}</span>
+              <div className="pass-tile__meta">
+                <time dateTime={post.createdAt}>
+                  {formatPostDate(post.createdAt)}
+                </time>
+                <span className="pass-tile__stats">
+                  <span className="pass-tile__stat">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                    {post.likeCount || 0}
+                  </span>
+                  <span className="pass-tile__stat">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    {post.commentCount || 0}
+                  </span>
+                </span>
+              </div>
             </div>
             <div className="pass-tile__actions">
               <button
                 type="button"
-                className="pass-tile__menu-btn"
-                aria-label="Öppna meny"
-                onClick={(event) => event.stopPropagation()}
+                className="pass-tile__delete-btn"
+                aria-label="Ta bort post"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDeletePost(post._id)
+                }}
               >
-                <span aria-hidden="true">⋯</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14"/>
+                </svg>
               </button>
             </div>
-            <button
-              type="button"
-              className="pass-tile__grip"
-              aria-label="Dra för att sortera"
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                <circle cx="4" cy="3" r="1.5" />
-                <circle cx="8" cy="3" r="1.5" />
-                <circle cx="12" cy="3" r="1.5" />
-                <circle cx="4" cy="8" r="1.5" />
-                <circle cx="8" cy="8" r="1.5" />
-                <circle cx="12" cy="8" r="1.5" />
-                <circle cx="4" cy="13" r="1.5" />
-                <circle cx="8" cy="13" r="1.5" />
-                <circle cx="12" cy="13" r="1.5" />
-              </svg>
-            </button>
           </div>
         ))}
 
@@ -2609,6 +2878,187 @@ function PostBoard({ user }) {
           <span aria-hidden="true">+</span>
         </button>
       </div>
+
+      {/* Selected post preview */}
+      {selectedPost && (
+        <div ref={selectedPostRef} className="post-preview">
+          <div className="post-preview__header">
+            <h3>{selectedPost.title}</h3>
+            <button
+              type="button"
+              className="post-preview__close"
+              onClick={() => {
+                setSelectedPost(null)
+                setSelectedPostChartData([])
+              }}
+              aria-label="Stäng förhandsgranskning"
+            >
+              ✕
+            </button>
+          </div>
+          <span className="post-preview__exercise">{selectedPost.exerciseName}</span>
+          
+          {isLoadingSelectedPost ? (
+            <div className="post-preview__loading">Laddar graf...</div>
+          ) : selectedPostChartData.length > 0 ? (
+            <div className="post-preview__chart">
+              <ResponsiveContainer width="100%" height={250}>
+                {selectedPost.chartType === 'line' ? (
+                  <LineChart data={selectedPostChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#3a3a3a" />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#999"
+                      tick={{ fill: '#999', fontSize: 11 }}
+                    />
+                    <YAxis 
+                      stroke="#999"
+                      tick={{ fill: '#999', fontSize: 11 }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#2a2a2a', 
+                        border: '1px solid #3a3a3a',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#f5a623" 
+                      strokeWidth={2}
+                      dot={{ fill: '#f5a623', strokeWidth: 2 }}
+                      name={selectedPost.metric === 'maxWeight' ? 'Max Vikt (kg)' : 
+                            selectedPost.metric === 'totalVolume' ? 'Volym (kg)' : 
+                            selectedPost.metric === 'totalReps' ? 'Reps' : 'Värde'}
+                    />
+                  </LineChart>
+                ) : (
+                  <BarChart data={selectedPostChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#3a3a3a" />
+                    <XAxis 
+                      dataKey="date" 
+                      stroke="#999"
+                      tick={{ fill: '#999', fontSize: 11 }}
+                    />
+                    <YAxis 
+                      stroke="#999"
+                      tick={{ fill: '#999', fontSize: 11 }}
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#2a2a2a', 
+                        border: '1px solid #3a3a3a',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Bar 
+                      dataKey="value" 
+                      fill="#f5a623"
+                      radius={[4, 4, 0, 0]}
+                      name={selectedPost.metric === 'maxWeight' ? 'Max Vikt (kg)' : 
+                            selectedPost.metric === 'totalVolume' ? 'Volym (kg)' : 
+                            selectedPost.metric === 'totalReps' ? 'Reps' : 'Värde'}
+                    />
+                  </BarChart>
+                )}
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="post-preview__no-data">Ingen data tillgänglig</div>
+          )}
+
+          {selectedPost.description && (
+            <p className="post-preview__description">{selectedPost.description}</p>
+          )}
+
+          <div className="post-preview__meta">
+            <span className="post-preview__stat">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+              </svg>
+              {selectedPost.likeCount || 0} gillningar
+            </span>
+            <button 
+              type="button"
+              className={`post-preview__stat post-preview__stat--clickable ${showComments ? 'post-preview__stat--active' : ''}`}
+              onClick={handleToggleComments}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+              {selectedPost.commentCount || 0} kommentarer
+            </button>
+          </div>
+
+          {/* Comments section */}
+          {showComments && (
+            <div className="post-preview__comments">
+              {isLoadingComments ? (
+                <p className="post-preview__comments-loading">Laddar kommentarer...</p>
+              ) : (
+                <>
+                  {comments.length === 0 ? (
+                    <p className="post-preview__no-comments">Inga kommentarer ännu</p>
+                  ) : (
+                    <ul className="post-preview__comments-list">
+                      {comments.map((comment) => (
+                        <li key={comment._id} className="post-preview__comment">
+                          <div className="post-preview__comment-header">
+                            <span className="post-preview__comment-author">
+                              {comment.authorName || 'Anonym'}
+                            </span>
+                            <time className="post-preview__comment-time">
+                              {new Date(comment.createdAt).toLocaleDateString('sv-SE', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </time>
+                            {comment.userId === userId && (
+                              <button
+                                type="button"
+                                className="post-preview__comment-delete"
+                                onClick={() => handleDeleteComment(comment._id)}
+                                aria-label="Ta bort kommentar"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                          <p className="post-preview__comment-text">{comment.content}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {/* Add comment form */}
+                  {userId && (
+                    <form className="post-preview__comment-form" onSubmit={handleSubmitComment}>
+                      <input
+                        type="text"
+                        className="post-preview__comment-input"
+                        placeholder="Skriv en kommentar..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        disabled={isSubmittingComment}
+                      />
+                      <button
+                        type="submit"
+                        className="post-preview__comment-submit"
+                        disabled={!commentText.trim() || isSubmittingComment}
+                      >
+                        {isSubmittingComment ? '...' : 'Skicka'}
+                      </button>
+                    </form>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Create post panel - expanded form */}
       {isCreatingPost && (

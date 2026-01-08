@@ -216,12 +216,23 @@ export function createPost(payload) {
   })
 }
 
-export function fetchPosts({ limit = 5, cursor = null } = {}) {
+export function fetchPosts({ limit = 5, cursor = null, userId = null } = {}) {
   const params = new URLSearchParams({ limit: String(limit) })
   if (cursor) {
     params.set('cursor', cursor)
   }
+  if (userId) {
+    params.set('userId', userId)
+  }
   return request(`/posts?${params.toString()}`)
+}
+
+export function fetchNewPosts({ after, limit = 20 } = {}) {
+  if (!after) {
+    throw new Error('after parameter is required')
+  }
+  const params = new URLSearchParams({ after, limit: String(limit) })
+  return request(`/posts/new?${params.toString()}`)
 }
 
 export function fetchPost(postId) {

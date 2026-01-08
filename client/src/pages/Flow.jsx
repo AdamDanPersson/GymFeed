@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { fetchPosts, deletePost, getStoredUser, getStoredUserId, likePost, unlikePost, checkPostLike, fetchComments, addComment, deleteComment, fetchPostChartData } from '../lib/apiClient'
+import { fetchPosts, fetchNewPosts, deletePost, getStoredUser, getStoredUserId, likePost, unlikePost, checkPostLike, fetchComments, addComment, deleteComment, fetchPostChartData } from '../lib/apiClient'
 import './Flow.css'
 
 // Metric labels for display
@@ -428,6 +428,13 @@ function FlowPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [nextCursor, setNextCursor] = useState(null)
   const [error, setError] = useState('')
+  
+  // New posts state
+  const [newPostsCount, setNewPostsCount] = useState(0)
+  const [latestPostTime, setLatestPostTime] = useState(null)
+  const [isLoadingNewPosts, setIsLoadingNewPosts] = useState(false)
+  const pollingIntervalRef = useRef(null)
+  const feedContainerRef = useRef(null)
 
   const currentUserId = useMemo(() => getStoredUserId(), [])
 
@@ -440,8 +447,14 @@ function FlowPage() {
     fetchPosts({ limit: 5 })
       .then((data) => {
         if (!ignore) {
-          setPosts(data.items || [])
+          const items = data.items || []
+          setPosts(items)
           setNextCursor(data.nextCursor)
+          
+          // Set the latest post time for polling
+          if (items.length > 0) {
+            setLatestPostTime(items[0].createdAt)
+          }
         }
       })
       .catch((err) => {
@@ -460,6 +473,69 @@ function FlowPage() {
       ignore = true
     }
   }, [])
+
+  // Polling for new posts
+  useEffect(() => {
+    if (!latestPostTime || isLoading) return
+
+    const checkForNewPosts = async () => {
+      try {
+        const data = await fetchNewPosts({ after: latestPostTime, limit: 20 })
+        if (data.count > 0) {
+          setNewPostsCount(data.count)
+        }
+      } catch (err) {
+        console.error('Failed to check for new posts:', err)
+      }
+    }
+
+    // Poll every 10 seconds
+    pollingIntervalRef.current = setInterval(checkForNewPosts, 10000)
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+      }
+    }
+  }, [latestPostTime, isLoading])
+
+  // Load new posts when clicking the button
+  const loadNewPosts = useCallback(async () => {
+    if (!latestPostTime || isLoadingNewPosts) return
+
+    setIsLoadingNewPosts(true)
+
+    try {
+      const data = await fetchNewPosts({ after: latestPostTime, limit: 20 })
+      if (data.items && data.items.length > 0) {
+        // Prepend new posts (they're sorted oldest first from API)
+        setPosts(prev => {
+          // Avoid duplicates
+          const existingIds = new Set(prev.map(p => p._id))
+          const newItems = data.items.filter(p => !existingIds.has(p._id))
+          return [...newItems.reverse(), ...prev] // Reverse to show newest first
+        })
+        
+        // Update latest post time
+        const newestPost = data.items[data.items.length - 1]
+        setLatestPostTime(newestPost.createdAt)
+        
+        // Reset count and scroll to top
+        setNewPostsCount(0)
+        
+        // Smooth scroll to top
+        if (feedContainerRef.current) {
+          feedContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        } else {
+          window.scrollTo({ top: 0, behavior: 'smooth' })
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load new posts:', err)
+    } finally {
+      setIsLoadingNewPosts(false)
+    }
+  }, [latestPostTime, isLoadingNewPosts])
 
   // Load more posts
   const loadMore = useCallback(async () => {
@@ -484,7 +560,25 @@ function FlowPage() {
 
   return (
     <main className="flow-page" aria-labelledby="flow-heading">
-      <div className="flow-feed">
+      {/* New posts indicator */}
+      {newPostsCount > 0 && (
+        <button
+          type="button"
+          className="flow-new-posts-btn"
+          onClick={loadNewPosts}
+          disabled={isLoadingNewPosts}
+          aria-label={`Ladda ${newPostsCount} nya inlägg`}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 19V5M5 12l7-7 7 7"/>
+          </svg>
+          {newPostsCount > 0 && (
+            <span className="flow-new-posts-badge">{newPostsCount}</span>
+          )}
+        </button>
+      )}
+      
+      <div ref={feedContainerRef} className="flow-feed">
         {isLoading ? (
           <div className="flow-feed__loading">Laddar inlägg...</div>
         ) : error ? (

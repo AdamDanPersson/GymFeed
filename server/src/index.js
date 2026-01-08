@@ -1166,9 +1166,15 @@ app.post('/posts', requireUser, async (req, res) => {
 app.get('/posts', async (req, res) => {
   const limit = Math.min(parseInt(req.query.limit) || 5, 50)
   const cursor = req.query.cursor
+  const userId = req.query.userId // Optional filter by user
 
   try {
     let query = {}
+
+    // Filter by userId if provided
+    if (userId && ObjectId.isValid(userId)) {
+      query.userId = new ObjectId(userId)
+    }
 
     // Cursor-based pagination: get posts older than cursor
     if (cursor) {
@@ -1216,6 +1222,56 @@ app.get('/posts', async (req, res) => {
   } catch (error) {
     console.error('Get posts error', error)
     return res.status(500).json({ message: 'Failed to fetch posts' })
+  }
+})
+
+// GET /posts/new - Get new posts (newer than a timestamp)
+app.get('/posts/new', async (req, res) => {
+  const after = req.query.after // ISO date string
+  const limit = Math.min(parseInt(req.query.limit) || 20, 50)
+
+  if (!after) {
+    return res.status(400).json({ message: 'after parameter is required' })
+  }
+
+  try {
+    const afterDate = new Date(after)
+    if (isNaN(afterDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid after date format' })
+    }
+
+    // Get posts created after the given timestamp
+    const posts = await postsCollection
+      .find({ createdAt: { $gt: afterDate } })
+      .sort({ createdAt: 1 }) // Oldest first (so they can be prepended in order)
+      .limit(limit)
+      .toArray()
+
+    return res.json({
+      count: posts.length,
+      items: posts.map((post) => ({
+        _id: post._id.toString(),
+        userId: post.userId.toString(),
+        type: post.type,
+        title: post.title,
+        description: post.description,
+        exerciseId: post.exerciseId.toString(),
+        exerciseName: post.exerciseName,
+        authorName: post.authorName,
+        chartType: post.chartType,
+        metric: post.metric,
+        dateRange: post.dateRange,
+        dateMode: post.dateMode,
+        specificDates: post.specificDates,
+        graphConfig: post.graphConfig,
+        createdAt: post.createdAt,
+        likeCount: post.likeCount,
+        commentCount: post.commentCount
+      }))
+    })
+  } catch (error) {
+    console.error('Get new posts error', error)
+    return res.status(500).json({ message: 'Failed to fetch new posts' })
   }
 })
 
