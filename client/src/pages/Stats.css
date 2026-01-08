@@ -717,6 +717,10 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+  padding: 0.75rem;
+  background: rgba(245, 231, 198, 0.25);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(34, 34, 34, 0.2);
 }
 
 .exercise-details__input {
@@ -801,6 +805,152 @@
 
 .exercise-details__add-btn:hover {
   background: #333333;
+}
+
+.exercise-details__list {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(245, 231, 198, 0.25);
+  border-radius: 0.5rem;
+  border: 1px solid rgba(34, 34, 34, 0.2);
+}
+
+.exercise-details__set {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 0.4rem;
+  border: 1px solid rgba(34, 34, 34, 0.15);
+}
+
+.exercise-details__set-info {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.exercise-details__set-drop {
+  color: #e53935;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.05em;
+}
+
+.exercise-details__save-btn {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  margin-top: 0.75rem;
+  background: #222222;
+  color: #f5e7c6;
+  border: none;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.exercise-details__save-btn:hover {
+  background: #333333;
+}
+
+.exercise-details__set-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.exercise-details__set-edit,
+.exercise-details__set-delete,
+.exercise-details__set-save,
+.exercise-details__set-cancel {
+  padding: 0.3rem 0.5rem;
+  border: none;
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.2s;
+}
+
+.exercise-details__set-edit {
+  background: rgba(34, 34, 34, 0.1);
+  color: #222222;
+}
+
+.exercise-details__set-edit:hover {
+  background: rgba(34, 34, 34, 0.2);
+}
+
+.exercise-details__set-delete {
+  background: rgba(229, 57, 53, 0.1);
+  color: #e53935;
+}
+
+.exercise-details__set-delete:hover {
+  background: rgba(229, 57, 53, 0.2);
+}
+
+.exercise-details__set-save {
+  background: rgba(76, 175, 80, 0.1);
+  color: #4CAF50;
+  font-weight: 700;
+}
+
+.exercise-details__set-save:hover {
+  background: rgba(76, 175, 80, 0.2);
+}
+
+.exercise-details__set-cancel {
+  background: rgba(34, 34, 34, 0.1);
+  color: #222222;
+  font-weight: 700;
+}
+
+.exercise-details__set-cancel:hover {
+  background: rgba(34, 34, 34, 0.2);
+}
+
+.exercise-details__edit-input {
+  flex: 0 1 80px;
+  padding: 0.4rem;
+  border: 1px solid #222222;
+  border-radius: 0.3rem;
+  background: rgba(245, 231, 198, 0.25);
+  color: #222222;
+  font-size: 0.85rem;
+}
+
+.exercise-details__edit-toggle {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.exercise-details__edit-toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.exercise-details__edit-toggle .exercise-details__toggle-slider {
+  width: 2rem;
+  height: 1.1rem;
+}
+
+.exercise-details__edit-toggle .exercise-details__toggle-slider::before {
+  width: 0.8rem;
+  height: 0.8rem;
+  left: 0.1rem;
+}
+
+.exercise-details__edit-toggle input[type="checkbox"]:checked + .exercise-details__toggle-slider::before {
+  transform: translateX(0.9rem) translateY(-50%);
 }
 
 .exercise-details p {

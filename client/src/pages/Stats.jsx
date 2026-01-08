@@ -104,6 +104,14 @@ function WorkoutBoard({ user }) {
   const [renameWorkoutSavingId, setRenameWorkoutSavingId] = useState(null)
 
   const [expandedExerciseId, setExpandedExerciseId] = useState(null)
+  const [exerciseSets, setExerciseSets] = useState({})
+  const [setWeight, setSetWeight] = useState('')
+  const [setReps, setSetReps] = useState('')
+  const [isDropset, setIsDropset] = useState(false)
+  const [editingSetId, setEditingSetId] = useState(null)
+  const [editWeight, setEditWeight] = useState('')
+  const [editReps, setEditReps] = useState('')
+  const [editIsDropset, setEditIsDropset] = useState(false)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -665,6 +673,65 @@ function WorkoutBoard({ user }) {
     setExpandedExerciseId((prev) => (prev === linkId ? null : linkId))
   }, [])
 
+  const handleAddSet = useCallback((linkId) => {
+    if (!setWeight || !setReps) return
+
+    const newSet = {
+      id: Date.now(),
+      weight: parseFloat(setWeight),
+      reps: parseInt(setReps, 10),
+      isDropset: isDropset
+    }
+
+    setExerciseSets((prev) => ({
+      ...prev,
+      [linkId]: [...(prev[linkId] || []), newSet]
+    }))
+
+    setSetWeight('')
+    setSetReps('')
+    setIsDropset(false)
+  }, [setWeight, setReps, isDropset])
+
+  const handleStartEditSet = useCallback((set) => {
+    setEditingSetId(set.id)
+    setEditWeight(set.weight.toString())
+    setEditReps(set.reps.toString())
+    setEditIsDropset(set.isDropset)
+  }, [])
+
+  const handleSaveEditSet = useCallback((linkId) => {
+    if (!editWeight || !editReps) return
+
+    setExerciseSets((prev) => ({
+      ...prev,
+      [linkId]: (prev[linkId] || []).map(set =>
+        set.id === editingSetId
+          ? { ...set, weight: parseFloat(editWeight), reps: parseInt(editReps, 10), isDropset: editIsDropset }
+          : set
+      )
+    }))
+
+    setEditingSetId(null)
+    setEditWeight('')
+    setEditReps('')
+    setEditIsDropset(false)
+  }, [editingSetId, editWeight, editReps, editIsDropset])
+
+  const handleCancelEditSet = useCallback(() => {
+    setEditingSetId(null)
+    setEditWeight('')
+    setEditReps('')
+    setEditIsDropset(false)
+  }, [])
+
+  const handleDeleteSet = useCallback((linkId, setId) => {
+    setExerciseSets((prev) => ({
+      ...prev,
+      [linkId]: (prev[linkId] || []).filter(set => set.id !== setId)
+    }))
+  }, [])
+
   const formatWorkoutDate = useCallback((value) => {
     if (!value) {
       return ''
@@ -780,6 +847,25 @@ function WorkoutBoard({ user }) {
                       onMoveCancel={handleCancelMove}
                       isExpanded={expandedExerciseId === item.linkId}
                       onToggleExpand={() => handleToggleExerciseExpand(item.linkId)}
+                      sets={exerciseSets[item.linkId] || []}
+                      setWeight={setWeight}
+                      setReps={setReps}
+                      isDropset={isDropset}
+                      onSetWeightChange={setSetWeight}
+                      onSetRepsChange={setSetReps}
+                      onDropsetChange={setIsDropset}
+                      onAddSet={() => handleAddSet(item.linkId)}
+                      editingSetId={editingSetId}
+                      editWeight={editWeight}
+                      editReps={editReps}
+                      editIsDropset={editIsDropset}
+                      onStartEditSet={handleStartEditSet}
+                      onSaveEditSet={() => handleSaveEditSet(item.linkId)}
+                      onCancelEditSet={handleCancelEditSet}
+                      onDeleteSet={(setId) => handleDeleteSet(item.linkId, setId)}
+                      onEditWeightChange={setEditWeight}
+                      onEditRepsChange={setEditReps}
+                      onEditDropsetChange={setEditIsDropset}
                     />
                   ))}
                 </SortableContext>
@@ -1048,7 +1134,26 @@ function SortableExerciseRow({
   onMoveConfirm,
   onMoveCancel,
   isExpanded,
-  onToggleExpand
+  onToggleExpand,
+  sets,
+  setWeight,
+  setReps,
+  isDropset,
+  onSetWeightChange,
+  onSetRepsChange,
+  onDropsetChange,
+  onAddSet,
+  editingSetId,
+  editWeight,
+  editReps,
+  editIsDropset,
+  onStartEditSet,
+  onSaveEditSet,
+  onCancelEditSet,
+  onDeleteSet,
+  onEditWeightChange,
+  onEditRepsChange,
+  onEditDropsetChange
 }) {
   const {
     attributes,
@@ -1092,6 +1197,25 @@ function SortableExerciseRow({
       onMoveCancel={onMoveCancel}
       isExpanded={isExpanded}
       onToggleExpand={onToggleExpand}
+      sets={sets}
+      setWeight={setWeight}
+      setReps={setReps}
+      isDropset={isDropset}
+      onSetWeightChange={onSetWeightChange}
+      onSetRepsChange={onSetRepsChange}
+      onDropsetChange={onDropsetChange}
+      onAddSet={onAddSet}
+      editingSetId={editingSetId}
+      editWeight={editWeight}
+      editReps={editReps}
+      editIsDropset={editIsDropset}
+      onStartEditSet={onStartEditSet}
+      onSaveEditSet={onSaveEditSet}
+      onCancelEditSet={onCancelEditSet}
+      onDeleteSet={onDeleteSet}
+      onEditWeightChange={onEditWeightChange}
+      onEditRepsChange={onEditRepsChange}
+      onEditDropsetChange={onEditDropsetChange}
       style={style}
       isDragging={isDragging}
       attributes={attributes}
@@ -1128,6 +1252,25 @@ function ExerciseRow({
   onMoveCancel,
   isExpanded,
   onToggleExpand,
+  sets,
+  setWeight,
+  setReps,
+  isDropset,
+  onSetWeightChange,
+  onSetRepsChange,
+  onDropsetChange,
+  onAddSet,
+  editingSetId,
+  editWeight,
+  editReps,
+  editIsDropset,
+  onStartEditSet,
+  onSaveEditSet,
+  onCancelEditSet,
+  onDeleteSet,
+  onEditWeightChange,
+  onEditRepsChange,
+  onEditDropsetChange,
   style,
   isDragging,
   attributes,
@@ -1249,24 +1392,115 @@ function ExerciseRow({
               type="number"
               placeholder="Vikt (kg)"
               className="exercise-details__input"
+              value={setWeight}
+              onChange={(e) => onSetWeightChange(e.target.value)}
             />
             <input
               type="number"
               placeholder="Repetitioner"
               className="exercise-details__input"
+              value={setReps}
+              onChange={(e) => onSetRepsChange(e.target.value)}
             />
             <label className="exercise-details__toggle">
-              <input type="checkbox" />
+              <input
+                type="checkbox"
+                checked={isDropset}
+                onChange={(e) => onDropsetChange(e.target.checked)}
+              />
               <span className="exercise-details__toggle-slider"></span>
               <span className="exercise-details__toggle-label">Dropset</span>
             </label>
             <button
               type="button"
               className="exercise-details__add-btn"
+              onClick={onAddSet}
             >
               Lägg till
             </button>
           </div>
+
+          {sets.length > 0 && (
+            <div className="exercise-details__list">
+              {sets.map((set) => (
+                <div key={set.id} className="exercise-details__set">
+                  {editingSetId === set.id ? (
+                    <>
+                      <input
+                        type="number"
+                        value={editWeight}
+                        onChange={(e) => onEditWeightChange(e.target.value)}
+                        className="exercise-details__edit-input"
+                        placeholder="Vikt"
+                      />
+                      <input
+                        type="number"
+                        value={editReps}
+                        onChange={(e) => onEditRepsChange(e.target.value)}
+                        className="exercise-details__edit-input"
+                        placeholder="Reps"
+                      />
+                      <label className="exercise-details__edit-toggle">
+                        <input
+                          type="checkbox"
+                          checked={editIsDropset}
+                          onChange={(e) => onEditDropsetChange(e.target.checked)}
+                        />
+                        <span className="exercise-details__toggle-slider"></span>
+                      </label>
+                      <div className="exercise-details__set-actions">
+                        <button
+                          type="button"
+                          className="exercise-details__set-save"
+                          onClick={onSaveEditSet}
+                        >
+                          ✓
+                        </button>
+                        <button
+                          type="button"
+                          className="exercise-details__set-cancel"
+                          onClick={onCancelEditSet}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <span className="exercise-details__set-info">
+                        {set.weight} kg x {set.reps} reps
+                      </span>
+                      {set.isDropset && (
+                        <span className="exercise-details__set-drop">DROP</span>
+                      )}
+                      <div className="exercise-details__set-actions">
+                        <button
+                          type="button"
+                          className="exercise-details__set-edit"
+                          onClick={() => onStartEditSet(set)}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          type="button"
+                          className="exercise-details__set-delete"
+                          onClick={() => onDeleteSet(set.id)}
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              <button
+                type="button"
+                className="exercise-details__save-btn"
+              >
+                Spara
+              </button>
+            </div>
+          )}
         </div>
       )}
     </>
