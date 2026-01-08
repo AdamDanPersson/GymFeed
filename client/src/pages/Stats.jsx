@@ -24,6 +24,7 @@ import {
   fetchWorkouts,
   getStoredUser,
   moveWorkoutExercise,
+  renameWorkout,
   reorderWorkoutExercises,
   reorderWorkouts,
   renameWorkoutExercise
@@ -97,6 +98,9 @@ function WorkoutBoard({ user }) {
 
   const [openMenuWorkoutId, setOpenMenuWorkoutId] = useState(null)
   const [confirmDeleteWorkoutId, setConfirmDeleteWorkoutId] = useState(null)
+  const [renameModeWorkoutId, setRenameModeWorkoutId] = useState(null)
+  const [renameWorkoutValue, setRenameWorkoutValue] = useState('')
+  const [renameWorkoutSavingId, setRenameWorkoutSavingId] = useState(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -117,6 +121,8 @@ function WorkoutBoard({ user }) {
         setSelectedMoveWorkoutId('')
         setOpenMenuWorkoutId(null)
         setConfirmDeleteWorkoutId(null)
+        setRenameModeWorkoutId(null)
+        setRenameWorkoutValue('')
       }
     }
 
@@ -151,6 +157,8 @@ function WorkoutBoard({ user }) {
       setSelectedMoveWorkoutId('')
       setOpenMenuWorkoutId(null)
       setConfirmDeleteWorkoutId(null)
+      setRenameModeWorkoutId(null)
+      setRenameWorkoutValue('')
       return
     }
 
@@ -569,9 +577,43 @@ function WorkoutBoard({ user }) {
     setOpenMenuWorkoutId(null)
   }, [])
 
-  const handleWorkoutRename = useCallback((workoutId) => {
-    console.log('rename workout', workoutId)
+  const handleWorkoutRename = useCallback((workoutId, currentName) => {
+    setRenameModeWorkoutId(workoutId)
+    setRenameWorkoutValue(currentName || '')
     setOpenMenuWorkoutId(null)
+    setConfirmDeleteWorkoutId(null)
+  }, [])
+
+  const handleWorkoutRenameSave = useCallback(async (workoutId) => {
+    if (renameModeWorkoutId !== workoutId) {
+      return
+    }
+
+    const trimmed = renameWorkoutValue.trim()
+    if (!trimmed) {
+      setWorkoutsError('Ange ett namn för att spara')
+      return
+    }
+
+    setWorkoutsError('')
+    setRenameWorkoutSavingId(workoutId)
+    try {
+      const updated = await renameWorkout(workoutId, { name: trimmed })
+      setWorkouts((prev) => prev.map((w) => (
+        w._id === workoutId ? { ...w, name: updated.name } : w
+      )))
+      setRenameModeWorkoutId(null)
+      setRenameWorkoutValue('')
+    } catch (error) {
+      setWorkoutsError(error.message)
+    } finally {
+      setRenameWorkoutSavingId(null)
+    }
+  }, [renameModeWorkoutId, renameWorkoutValue])
+
+  const handleWorkoutRenameCancel = useCallback(() => {
+    setRenameModeWorkoutId(null)
+    setRenameWorkoutValue('')
   }, [])
 
   const handleWorkoutCopy = useCallback((workoutId) => {
@@ -640,12 +682,18 @@ function WorkoutBoard({ user }) {
                 isMenuOpen={openMenuWorkoutId === workout._id}
                 onToggleMenu={() => handleToggleWorkoutMenu(workout._id)}
                 onCloseMenu={handleCloseWorkoutMenu}
-                onRequestRename={() => handleWorkoutRename(workout._id)}
+                onRequestRename={() => handleWorkoutRename(workout._id, workout.name)}
                 onCopy={() => handleWorkoutCopy(workout._id)}
                 onRequestDelete={() => handleWorkoutDelete(workout._id)}
                 showDeleteConfirm={confirmDeleteWorkoutId === workout._id}
                 onConfirmDelete={() => handleConfirmDeleteWorkout(workout._id)}
                 onCancelDelete={handleCancelDeleteWorkout}
+                isRenaming={renameModeWorkoutId === workout._id}
+                renameValue={renameModeWorkoutId === workout._id ? renameWorkoutValue : ''}
+                onRenameValueChange={setRenameWorkoutValue}
+                onRenameSave={() => handleWorkoutRenameSave(workout._id)}
+                onRenameCancel={handleWorkoutRenameCancel}
+                renameSaving={renameWorkoutSavingId === workout._id}
               />
             ))}
           </SortableContext>
@@ -798,7 +846,7 @@ function WorkoutBoard({ user }) {
   )
 }
 
-function SortableWorkoutTile({ workout, formatWorkoutDate, onSelect, isSelected, isMenuOpen, onToggleMenu, onCloseMenu, onRequestRename, onCopy, onRequestDelete, showDeleteConfirm, onConfirmDelete, onCancelDelete }) {
+function SortableWorkoutTile({ workout, formatWorkoutDate, onSelect, isSelected, isMenuOpen, onToggleMenu, onCloseMenu, onRequestRename, onCopy, onRequestDelete, showDeleteConfirm, onConfirmDelete, onCancelDelete, isRenaming, renameValue, onRenameValueChange, onRenameSave, onRenameCancel, renameSaving }) {
   const {
     attributes,
     listeners,
@@ -863,10 +911,37 @@ function SortableWorkoutTile({ workout, formatWorkoutDate, onSelect, isSelected,
       }}
     >
       <div className="pass-tile__content">
-        <h3>{workout.name}</h3>
-        <time dateTime={workout.createdAt}>
-          {formatWorkoutDate(workout.createdAt)}
-        </time>
+        {isRenaming ? (
+          <form
+            className="workout-rename"
+            onSubmit={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              onRenameSave?.()
+            }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(event) => onRenameValueChange?.(event.target.value)}
+              maxLength={60}
+              autoFocus
+              disabled={renameSaving}
+            />
+            <div className="workout-rename__actions">
+              <button type="submit" className="workout-rename__primary" disabled={renameSaving}>{renameSaving ? 'Sparar...' : 'Spara'}</button>
+              <button type="button" className="workout-rename__secondary" onClick={onRenameCancel} disabled={renameSaving}>Avbryt</button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <h3>{workout.name}</h3>
+            <time dateTime={workout.createdAt}>
+              {formatWorkoutDate(workout.createdAt)}
+            </time>
+          </>
+        )}
       </div>
       <div className="pass-tile__actions">
         <button

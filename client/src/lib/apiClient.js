@@ -98,6 +98,14 @@ export function reorderWorkouts(workoutIds) {
   })
 }
 
+export function renameWorkout(workoutId, payload) {
+  return request(`/workouts/${workoutId}/rename`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    requireUser: true
+  })
+}
+
 export function fetchWorkoutExercises(workoutId) {
   return request(`/workouts/${workoutId}/exercises`, { requireUser: true })
 }

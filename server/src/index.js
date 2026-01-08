@@ -210,6 +210,42 @@ app.delete('/workouts/:id', requireUser, async (req, res) => {
   }
 })
 
+app.put('/workouts/:id/rename', requireUser, async (req, res) => {
+  const { id } = req.params
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: 'Invalid workout id' })
+  }
+
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+  if (!name) {
+    return res.status(400).json({ message: 'Workout name is required' })
+  }
+
+  try {
+    const workoutObjectId = new ObjectId(id)
+    const result = await workoutsCollection.findOneAndUpdate(
+      { _id: workoutObjectId, userId: req.userId },
+      { $set: { name, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    )
+
+    if (!result) {
+      return res.status(404).json({ message: 'Workout not found' })
+    }
+
+    return res.status(200).json({
+      _id: result._id.toString(),
+      name: result.name,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt
+    })
+  } catch (error) {
+    console.error('Rename workout error', error)
+    return res.status(500).json({ message: 'Failed to rename workout' })
+  }
+})
+
 async function assertWorkoutOwner(workoutId, userId) {
   if (!ObjectId.isValid(workoutId)) {
     const error = new Error('Invalid workout id')
