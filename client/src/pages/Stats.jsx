@@ -29,7 +29,8 @@ import {
   reorderWorkoutExercises,
   reorderWorkouts,
   renameWorkoutExercise,
-  saveSetsBulk
+  saveSetsBulk,
+  getExerciseSets
 } from '../lib/apiClient'
 import './Stats.css'
 
@@ -116,6 +117,8 @@ function WorkoutBoard({ user }) {
   const [savingSetsFor, setSavingSetsFor] = useState(null)
   const [saveSuccessFor, setSaveSuccessFor] = useState(null)
   const [saveErrorFor, setSaveErrorFor] = useState(null)
+  const [exerciseHistory, setExerciseHistory] = useState({})
+  const [loadingHistoryFor, setLoadingHistoryFor] = useState(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -673,9 +676,26 @@ function WorkoutBoard({ user }) {
     setConfirmDeleteWorkoutId(null)
   }, [])
 
-  const handleToggleExerciseExpand = useCallback((linkId) => {
+  const handleToggleExerciseExpand = useCallback(async (linkId, exerciseId) => {
+    const isExpanding = expandedExerciseId !== linkId
     setExpandedExerciseId((prev) => (prev === linkId ? null : linkId))
-  }, [])
+    
+    // Fetch history when expanding if not already loaded
+    if (isExpanding && exerciseId && !exerciseHistory[exerciseId]) {
+      setLoadingHistoryFor(exerciseId)
+      try {
+        const data = await getExerciseSets(exerciseId)
+        setExerciseHistory((prev) => ({
+          ...prev,
+          [exerciseId]: data
+        }))
+      } catch (error) {
+        console.error('Failed to fetch exercise history', error)
+      } finally {
+        setLoadingHistoryFor(null)
+      }
+    }
+  }, [expandedExerciseId, exerciseHistory])
 
   const handleAddSet = useCallback((linkId) => {
     if (!setWeight || !setReps) return
@@ -760,6 +780,23 @@ function WorkoutBoard({ user }) {
         ...prev,
         [linkId]: []
       }))
+
+      // Clear history so it will be refetched
+      setExerciseHistory((prev) => ({
+        ...prev,
+        [exerciseId]: null
+      }))
+
+      // Refetch history
+      try {
+        const data = await getExerciseSets(exerciseId)
+        setExerciseHistory((prev) => ({
+          ...prev,
+          [exerciseId]: data
+        }))
+      } catch (error) {
+        console.error('Failed to refetch history', error)
+      }
 
       setSaveSuccessFor(linkId)
       setTimeout(() => {
@@ -887,8 +924,10 @@ function WorkoutBoard({ user }) {
                       onMoveConfirm={handleMoveConfirm}
                       onMoveCancel={handleCancelMove}
                       isExpanded={expandedExerciseId === item.linkId}
-                      onToggleExpand={() => handleToggleExerciseExpand(item.linkId)}
+                      onToggleExpand={() => handleToggleExerciseExpand(item.linkId, item.exerciseId)}
                       sets={exerciseSets[item.linkId] || []}
+                      exerciseHistory={exerciseHistory[item.exerciseId]}
+                      loadingHistory={loadingHistoryFor === item.exerciseId}
                       setWeight={setWeight}
                       setReps={setReps}
                       isDropset={isDropset}
@@ -1181,6 +1220,8 @@ function SortableExerciseRow({
   isExpanded,
   onToggleExpand,
   sets,
+  exerciseHistory,
+  loadingHistory,
   setWeight,
   setReps,
   isDropset,
@@ -1247,6 +1288,8 @@ function SortableExerciseRow({
       isExpanded={isExpanded}
       onToggleExpand={onToggleExpand}
       sets={sets}
+      exerciseHistory={exerciseHistory}
+      loadingHistory={loadingHistory}
       setWeight={setWeight}
       setReps={setReps}
       isDropset={isDropset}
@@ -1306,6 +1349,8 @@ function ExerciseRow({
   isExpanded,
   onToggleExpand,
   sets,
+  exerciseHistory,
+  loadingHistory,
   setWeight,
   setReps,
   isDropset,
@@ -1445,7 +1490,32 @@ function ExerciseRow({
       {isExpanded && (
         <>
           <div className="exercise-history">
-            {/* Tom för tillfället - kommer visa historik */}
+            <div className="exercise-history__sidebar">
+              {loadingHistory ? (
+                <p className="exercise-history__loading">Laddar...</p>
+              ) : exerciseHistory && exerciseHistory.groups && exerciseHistory.groups.length > 0 ? (
+                <>
+                  <h4 className="exercise-history__title">Senaste setten</h4>
+                  <div className="exercise-history__sets">
+                    {exerciseHistory.groups[0].sets.map((set) => (
+                      <div key={set._id} className="exercise-history__set">
+                        <span className="exercise-history__set-info">
+                          {set.weight} kg x {set.reps}
+                        </span>
+                        {set.isDropSet && (
+                          <span className="exercise-history__set-drop">DROP</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="exercise-history__empty">Inga tidigare sets</p>
+              )}
+            </div>
+            <div className="exercise-history__content">
+              {/* Resterande utrymmet */}
+            </div>
           </div>
           
           <div className="exercise-details">

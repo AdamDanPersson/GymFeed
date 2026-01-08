@@ -711,6 +711,65 @@
   color: #222222;
   outline: 2px solid #222222;
   min-height: 3rem;
+  display: flex;
+  gap: 1rem;
+}
+
+.exercise-history__sidebar {
+  flex: 0 0 25%;
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.exercise-history__content {
+  flex: 1;
+  background: rgba(128, 128, 128, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.exercise-history__title {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #222222;
+}
+
+.exercise-history__loading,
+.exercise-history__empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(34, 34, 34, 0.6);
+  text-align: center;
+}
+
+.exercise-history__sets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.exercise-history__set {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.exercise-history__set-info {
+  font-weight: 600;
+  color: #222222;
+}
+
+.exercise-history__set-drop {
+  color: #e53935;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
 }
 
 .exercise-details {
