@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { fetchPosts, deletePost, getExerciseSets, getStoredUser, getStoredUserId, likePost, unlikePost, checkPostLike, fetchComments, addComment, deleteComment } from '../lib/apiClient'
+import { fetchPosts, deletePost, getStoredUser, getStoredUserId, likePost, unlikePost, checkPostLike, fetchComments, addComment, deleteComment, fetchPostChartData } from '../lib/apiClient'
 import './Flow.css'
 
 // Metric labels for display
@@ -115,14 +115,14 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
       .catch(() => {}) // Silently fail
   }, [post._id, isLoggedIn])
 
-  // Fetch exercise data for chart
+  // Fetch chart data for post (uses public endpoint)
   useEffect(() => {
-    if (!post.exerciseId) return
+    if (!post._id) return
 
     let ignore = false
     setIsLoadingChart(true)
 
-    getExerciseSets(post.exerciseId)
+    fetchPostChartData(post._id)
       .then((data) => {
         if (!ignore && data.groups) {
           const computed = calculateChartData(data.groups, post.metric, post.dateRange, post.dateMode, post.specificDates)
@@ -141,7 +141,7 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
     return () => {
       ignore = true
     }
-  }, [post.exerciseId, post.metric, post.dateRange])
+  }, [post._id, post.metric, post.dateRange, post.dateMode, post.specificDates])
 
   const handleDelete = useCallback(async () => {
     if (!confirm('Är du säker på att du vill ta bort denna post?')) return

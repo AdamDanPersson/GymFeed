@@ -228,6 +228,10 @@ export function fetchPost(postId) {
   return request(`/posts/${postId}`)
 }
 
+export function fetchPostChartData(postId) {
+  return request(`/posts/${postId}/chart-data`)
+}
+
 export function deletePost(postId) {
   return request(`/posts/${postId}`, {
     method: 'DELETE',

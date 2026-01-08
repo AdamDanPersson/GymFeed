@@ -1259,6 +1259,62 @@ app.get('/posts/:postId', async (req, res) => {
   }
 })
 
+// GET /posts/:postId/chart-data - Get chart data for a post (public)
+app.get('/posts/:postId/chart-data', async (req, res) => {
+  const { postId } = req.params
+
+  if (!ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid post ID' })
+  }
+
+  try {
+    // Get the post
+    const post = await postsCollection.findOne({ _id: new ObjectId(postId) })
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' })
+    }
+
+    // Get all sets for this exercise (belonging to the post creator)
+    const sets = await setsCollection
+      .find({ 
+        exerciseId: post.exerciseId,
+        userId: post.userId
+      })
+      .sort({ date: -1 })
+      .toArray()
+
+    // Group sets by groupId
+    const groupMap = new Map()
+    for (const set of sets) {
+      const groupId = set.groupId?.toString() || set._id.toString()
+      if (!groupMap.has(groupId)) {
+        groupMap.set(groupId, {
+          groupId,
+          date: set.date,
+          sets: []
+        })
+      }
+      groupMap.get(groupId).sets.push({
+        _id: set._id.toString(),
+        weight: set.weight,
+        reps: set.reps,
+        isDropSet: set.isDropSet || false
+      })
+    }
+
+    const groups = Array.from(groupMap.values())
+
+    return res.json({
+      exerciseId: post.exerciseId.toString(),
+      exerciseName: post.exerciseName,
+      groups
+    })
+  } catch (error) {
+    console.error('Get post chart data error', error)
+    return res.status(500).json({ message: 'Failed to fetch chart data' })
+  }
+})
+
 // DELETE /posts/:postId - Delete own post
 app.delete('/posts/:postId', requireUser, async (req, res) => {
   const { postId } = req.params
