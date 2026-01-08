@@ -41,7 +41,8 @@ import {
   fetchPostChartData,
   fetchComments,
   addComment,
-  deleteComment
+  deleteComment,
+  markCommentsAsRead
 } from '../lib/apiClient'
 import './Stats.css'
 
@@ -2280,6 +2281,37 @@ function PostBoard({ user, openPostCreator }) {
     }
   }, [userId])
 
+  // Poll for unread comment updates
+  useEffect(() => {
+    if (!userId || isLoadingPosts) return
+
+    const pollUnreadComments = async () => {
+      try {
+        const data = await fetchPosts({ limit: 50, userId })
+        setPosts(prevPosts => {
+          // Update only unreadCommentCount to avoid disrupting UI
+          const updatedPosts = prevPosts.map(prevPost => {
+            const newPost = data.items?.find(p => p._id === prevPost._id)
+            if (newPost && newPost.unreadCommentCount !== prevPost.unreadCommentCount) {
+              return { ...prevPost, unreadCommentCount: newPost.unreadCommentCount }
+            }
+            return prevPost
+          })
+          return updatedPosts
+        })
+      } catch (err) {
+        console.error('Failed to poll unread comments:', err)
+      }
+    }
+
+    // Poll every 10 seconds
+    const intervalId = setInterval(pollUnreadComments, 10000)
+
+    return () => {
+      clearInterval(intervalId)
+    }
+  }, [userId, isLoadingPosts])
+
   // Calculate date presets
   const applyDatePreset = useCallback((preset) => {
     const now = new Date()
@@ -2734,6 +2766,50 @@ function PostBoard({ user, openPostCreator }) {
     setCommentText('')
   }, [selectedPost?._id])
 
+  // Poll for new comments when comments section is open
+  useEffect(() => {
+    if (!showComments || !selectedPost || isLoadingComments) return
+
+    const pollComments = async () => {
+      try {
+        const data = await fetchComments(selectedPost._id)
+        const newComments = data.comments || []
+        
+        setComments(prevComments => {
+          // Only update if there are new comments
+          if (newComments.length !== prevComments.length) {
+            // Find genuinely new comments (not already in list)
+            const existingIds = new Set(prevComments.map(c => c._id))
+            const addedComments = newComments.filter(c => !existingIds.has(c._id))
+            
+            if (addedComments.length > 0) {
+              // Update comment count in posts and selectedPost
+              const newCount = newComments.length
+              setPosts(prev => prev.map(p => 
+                p._id === selectedPost._id 
+                  ? { ...p, commentCount: newCount }
+                  : p
+              ))
+              setSelectedPost(prev => prev ? { ...prev, commentCount: newCount } : null)
+              
+              return [...prevComments, ...addedComments]
+            }
+          }
+          return prevComments
+        })
+      } catch (err) {
+        console.error('Failed to poll comments:', err)
+      }
+    }
+
+    // Poll every 5 seconds when comments are open
+    const intervalId = setInterval(pollComments, 5000)
+
+    return () => {
+      clearInterval(intervalId)
+    }
+  }, [showComments, selectedPost, isLoadingComments])
+
   // Toggle comments section
   const handleToggleComments = useCallback(async () => {
     if (!selectedPost) return
@@ -2744,6 +2820,17 @@ function PostBoard({ user, openPostCreator }) {
       try {
         const data = await fetchComments(selectedPost._id)
         setComments(data.comments || [])
+        
+        // Mark comments as read and update local state
+        if (selectedPost.unreadCommentCount > 0) {
+          await markCommentsAsRead(selectedPost._id)
+          setPosts(prev => prev.map(p => 
+            p._id === selectedPost._id 
+              ? { ...p, unreadCommentCount: 0 }
+              : p
+          ))
+          setSelectedPost(prev => prev ? { ...prev, unreadCommentCount: 0 } : null)
+        }
       } catch (err) {
         console.error('Failed to fetch comments:', err)
       } finally {
@@ -2826,6 +2913,13 @@ function PostBoard({ user, openPostCreator }) {
             onClick={() => handleSelectPost(post)}
             style={{ cursor: 'pointer' }}
           >
+            {post.unreadCommentCount > 0 && (
+              <div className="pass-tile__unread-badge" title={`${post.unreadCommentCount} olästa kommentarer`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                  <circle cx="12" cy="12" r="10"/>
+                </svg>
+              </div>
+            )}
             <div className="pass-tile__content">
               <h3>{post.title}</h3>
               <span className="pass-tile__exercise">{post.exerciseName}</span>

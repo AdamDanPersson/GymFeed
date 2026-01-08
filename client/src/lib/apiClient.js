@@ -293,4 +293,11 @@ export function deleteComment(postId, commentId) {
   })
 }
 
+export function markCommentsAsRead(postId) {
+  return request(`/posts/${postId}/mark-read`, {
+    method: 'POST',
+    requireUser: true
+  })
+}
+
 export { getStoredUser, getStoredUserId }

@@ -25,6 +25,7 @@ let setsCollection
 let postsCollection
 let postLikesCollection
 let postCommentsCollection
+let postUnreadCommentsCollection
 
 // Valid metrics and chart types for posts
 const VALID_METRICS = ['maxWeight', 'totalVolume', 'e1rm', 'setCount', 'allSets']
@@ -1197,6 +1198,19 @@ app.get('/posts', async (req, res) => {
       ? items[items.length - 1].createdAt.toISOString()
       : null
 
+    // Get unread comment counts if userId filter is used (user viewing their own posts)
+    let unreadCounts = {}
+    if (userId && ObjectId.isValid(userId)) {
+      const postIds = items.map(p => p._id)
+      const unreads = await postUnreadCommentsCollection
+        .find({ postId: { $in: postIds }, userId: new ObjectId(userId) })
+        .toArray()
+      
+      unreads.forEach(unread => {
+        unreadCounts[unread.postId.toString()] = unread.count || 0
+      })
+    }
+
     return res.json({
       items: items.map((post) => ({
         _id: post._id.toString(),
@@ -1215,7 +1229,8 @@ app.get('/posts', async (req, res) => {
         graphConfig: post.graphConfig,
         createdAt: post.createdAt,
         likeCount: post.likeCount,
-        commentCount: post.commentCount
+        commentCount: post.commentCount,
+        unreadCommentCount: unreadCounts[post._id.toString()] || 0
       })),
       nextCursor
     })
@@ -1585,6 +1600,24 @@ app.post('/posts/:postId/comments', requireUser, async (req, res) => {
       { $inc: { commentCount: 1 } }
     )
 
+    // If commenter is not the post author, increment unread count
+    if (post.userId.toString() !== req.userId.toString()) {
+      await postUnreadCommentsCollection.updateOne(
+        { postId: new ObjectId(postId), userId: post.userId },
+        { $inc: { count: 1 } },
+        { upsert: true }
+      )
+    }
+
+    // If commenter is not the post author, increment unread count
+    if (post.userId.toString() !== req.userId.toString()) {
+      await postUnreadCommentsCollection.updateOne(
+        { postId: new ObjectId(postId), userId: post.userId },
+        { $inc: { count: 1 } },
+        { upsert: true }
+      )
+    }
+
     return res.status(201).json({
       _id: result.insertedId.toString(),
       postId: commentDoc.postId.toString(),
@@ -1596,6 +1629,28 @@ app.post('/posts/:postId/comments', requireUser, async (req, res) => {
   } catch (error) {
     console.error('Add comment error', error)
     return res.status(500).json({ message: 'Failed to add comment' })
+  }
+})
+
+// POST /posts/:postId/mark-read - Mark comments as read
+app.post('/posts/:postId/mark-read', requireUser, async (req, res) => {
+  const { postId } = req.params
+
+  if (!ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid post ID' })
+  }
+
+  try {
+    // Delete the unread entry (sets count to 0)
+    await postUnreadCommentsCollection.deleteOne({
+      postId: new ObjectId(postId),
+      userId: req.userId
+    })
+
+    return res.json({ success: true })
+  } catch (error) {
+    console.error('Mark read error', error)
+    return res.status(500).json({ message: 'Failed to mark as read' })
   }
 })
 
@@ -1659,6 +1714,7 @@ async function start() {
     postsCollection = db.collection('posts')
     postLikesCollection = db.collection('postLikes')
     postCommentsCollection = db.collection('postComments')
+    postUnreadCommentsCollection = db.collection('postUnreadComments')
     await usersCollection.createIndex({ email: 1 }, { unique: true })
     await workoutsCollection.createIndex({ userId: 1, createdAt: -1 })
     await workoutsCollection.createIndex({ userId: 1, name: 1 }, { unique: true })
@@ -1680,6 +1736,9 @@ async function start() {
     // PostComments indexes
     await postCommentsCollection.createIndex({ postId: 1, createdAt: 1 })
     await postCommentsCollection.createIndex({ userId: 1 })
+    // PostUnreadComments indexes
+    await postUnreadCommentsCollection.createIndex({ postId: 1, userId: 1 }, { unique: true })
+    await postUnreadCommentsCollection.createIndex({ userId: 1 })
 
     app.listen(PORT, () => {
       console.log(`API listening on http://localhost:${PORT}`)

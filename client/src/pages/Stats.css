@@ -1721,6 +1721,28 @@
   align-items: flex-start;
   justify-content: space-between;
   cursor: default;
+  position: relative;
+}
+
+.pass-tile__unread-badge {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  color: #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  z-index: 10;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 .pass-tile--post .pass-tile__content {
