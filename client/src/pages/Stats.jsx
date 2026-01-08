@@ -22,7 +22,8 @@ import {
   fetchWorkouts,
   getStoredUser,
   reorderWorkoutExercises,
-  reorderWorkouts
+  reorderWorkouts,
+  renameWorkoutExercise
 } from '../lib/apiClient'
 import './Stats.css'
 
@@ -87,6 +88,7 @@ function WorkoutBoard({ user }) {
   const [confirmDeleteExerciseId, setConfirmDeleteExerciseId] = useState(null)
   const [renameModeExerciseId, setRenameModeExerciseId] = useState(null)
   const [renameValue, setRenameValue] = useState('')
+  const [renameSavingId, setRenameSavingId] = useState(null)
   const [moveModeExerciseId, setMoveModeExerciseId] = useState(null)
   const [selectedMoveWorkoutId, setSelectedMoveWorkoutId] = useState('')
 
@@ -412,6 +414,10 @@ function WorkoutBoard({ user }) {
     setSelectedMoveWorkoutId('')
   }, [])
 
+  const handleCloseExerciseMenu = useCallback(() => {
+    setOpenMenuExerciseId(null)
+  }, [])
+
   const handleRequestDelete = useCallback((exerciseId) => {
     setConfirmDeleteExerciseId(exerciseId)
     setOpenMenuExerciseId(null)
@@ -451,8 +457,8 @@ function WorkoutBoard({ user }) {
     setSelectedMoveWorkoutId('')
   }, [])
 
-  const handleRenameSave = useCallback((exerciseId) => {
-    if (renameModeExerciseId !== exerciseId) {
+  const handleRenameSave = useCallback(async (exerciseId) => {
+    if (!selectedWorkoutId || renameModeExerciseId !== exerciseId) {
       return
     }
 
@@ -463,13 +469,20 @@ function WorkoutBoard({ user }) {
     }
 
     setExercisesError('')
-    setExerciseLinks((prev) => prev.map((item) => (
-      item.linkId === exerciseId ? { ...item, name: trimmed } : item
-    )))
-    console.log('rename', exerciseId, trimmed)
-    setRenameModeExerciseId(null)
-    setRenameValue('')
-  }, [renameModeExerciseId, renameValue])
+    setRenameSavingId(exerciseId)
+    try {
+      const updated = await renameWorkoutExercise(selectedWorkoutId, exerciseId, { name: trimmed })
+      setExerciseLinks((prev) => prev.map((item) => (
+        item.linkId === exerciseId ? { ...item, name: updated.name } : item
+      )))
+      setRenameModeExerciseId(null)
+      setRenameValue('')
+    } catch (error) {
+      setExercisesError(error.message)
+    } finally {
+      setRenameSavingId(null)
+    }
+  }, [renameModeExerciseId, renameValue, selectedWorkoutId])
 
   const handleCancelRename = useCallback(() => {
     setRenameModeExerciseId(null)
@@ -606,6 +619,7 @@ function WorkoutBoard({ user }) {
                       currentWorkoutId={selectedWorkoutId}
                       isMenuOpen={openMenuExerciseId === item.linkId}
                       onToggleMenu={() => handleToggleExerciseMenu(item.linkId)}
+                      onCloseMenu={handleCloseExerciseMenu}
                       onRequestRename={() => handleStartRename(item.linkId, item.name)}
                       onCopy={() => handleCopyExercise(item.linkId)}
                       onRequestDelete={() => handleRequestDelete(item.linkId)}
@@ -614,6 +628,7 @@ function WorkoutBoard({ user }) {
                       onCancelDelete={handleCancelDelete}
                       isRenaming={renameModeExerciseId === item.linkId}
                       renameValue={renameValue}
+                      renameSaving={renameSavingId === item.linkId}
                       onRenameValueChange={setRenameValue}
                       onRenameSave={() => handleRenameSave(item.linkId)}
                       onRenameCancel={handleCancelRename}
@@ -813,6 +828,7 @@ function SortableExerciseRow({
   currentWorkoutId,
   isMenuOpen,
   onToggleMenu,
+  onCloseMenu,
   onRequestRename,
   onCopy,
   onRequestDelete,
@@ -821,6 +837,7 @@ function SortableExerciseRow({
   onCancelDelete,
   isRenaming,
   renameValue,
+  renameSaving,
   onRenameValueChange,
   onRenameSave,
   onRenameCancel,
@@ -852,6 +869,7 @@ function SortableExerciseRow({
       currentWorkoutId={currentWorkoutId}
       isMenuOpen={isMenuOpen}
       onToggleMenu={onToggleMenu}
+      onCloseMenu={onCloseMenu}
       onRequestRename={onRequestRename}
       onCopy={onCopy}
       onRequestDelete={onRequestDelete}
@@ -860,6 +878,7 @@ function SortableExerciseRow({
       onCancelDelete={onCancelDelete}
       isRenaming={isRenaming}
       renameValue={renameValue}
+      renameSaving={renameSaving}
       onRenameValueChange={onRenameValueChange}
       onRenameSave={onRenameSave}
       onRenameCancel={onRenameCancel}
@@ -884,6 +903,7 @@ function ExerciseRow({
   currentWorkoutId,
   isMenuOpen,
   onToggleMenu,
+  onCloseMenu,
   onRequestRename,
   onCopy,
   onRequestDelete,
@@ -892,6 +912,7 @@ function ExerciseRow({
   onCancelDelete,
   isRenaming,
   renameValue,
+  renameSaving,
   onRenameValueChange,
   onRenameSave,
   onRenameCancel,
@@ -950,10 +971,11 @@ function ExerciseRow({
               onChange={(event) => onRenameValueChange?.(event.target.value)}
               maxLength={60}
               autoFocus
+              disabled={renameSaving}
             />
             <div className="exercise-rename__actions">
-              <button type="submit" className="exercise-rename__primary">Spara</button>
-              <button type="button" className="exercise-rename__secondary" onClick={onRenameCancel}>Avbryt</button>
+              <button type="submit" className="exercise-rename__primary" disabled={renameSaving}>{renameSaving ? 'Sparar...' : 'Spara'}</button>
+              <button type="button" className="exercise-rename__secondary" onClick={onRenameCancel} disabled={renameSaving}>Avbryt</button>
             </div>
           </form>
         ) : (
@@ -979,7 +1001,7 @@ function ExerciseRow({
 
         <ExerciseMenu
           isOpen={isMenuOpen}
-          onClose={onToggleMenu}
+          onClose={onCloseMenu}
           onRename={onRequestRename}
           onCopy={onCopy}
           onMove={onMoveStart}

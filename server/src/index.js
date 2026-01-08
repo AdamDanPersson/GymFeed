@@ -394,6 +394,48 @@ app.delete('/workouts/:workoutId/exercises/:linkId', requireUser, async (req, re
   }
 })
 
+app.put('/workouts/:workoutId/exercises/:linkId/rename', requireUser, async (req, res) => {
+  try {
+    const workoutObjectId = await assertWorkoutOwner(req.params.workoutId, req.userId)
+
+    const { linkId } = req.params
+    if (!ObjectId.isValid(linkId)) {
+      return res.status(400).json({ message: 'Invalid link id' })
+    }
+
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
+    if (!name) {
+      return res.status(400).json({ message: 'Exercise name is required' })
+    }
+
+    const link = await workoutExercisesCollection.findOne({
+      _id: new ObjectId(linkId),
+      userId: req.userId,
+      workoutId: workoutObjectId
+    })
+
+    if (!link) {
+      return res.status(404).json({ message: 'Exercise link not found' })
+    }
+
+    const exerciseObjectId = link.exerciseId
+
+    await exercisesCollection.updateOne(
+      { _id: exerciseObjectId, userId: req.userId },
+      { $set: { name, updatedAt: new Date() } }
+    )
+
+    const exerciseDoc = await exercisesCollection.findOne({ _id: exerciseObjectId, userId: req.userId })
+    return res.json(toLinkResponse(link, exerciseDoc))
+  } catch (error) {
+    const status = error.status || 500
+    if (status === 500) {
+      console.error('Rename exercise error', error)
+    }
+    return res.status(status).json({ message: error.message || 'Failed to rename exercise' })
+  }
+})
+
 app.put('/workouts/reorder', requireUser, async (req, res) => {
   const { workoutIds } = req.body
 

@@ -125,4 +125,12 @@ export function deleteWorkoutExercise(workoutId, linkId) {
   })
 }
 
+export function renameWorkoutExercise(workoutId, linkId, payload) {
+  return request(`/workouts/${workoutId}/exercises/${linkId}/rename`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    requireUser: true
+  })
+}
+
 export { getStoredUser, getStoredUserId }
