@@ -106,6 +106,13 @@ export function renameWorkout(workoutId, payload) {
   })
 }
 
+export function copyWorkout(workoutId) {
+  return request(`/workouts/${workoutId}/copy`, {
+    method: 'POST',
+    requireUser: true
+  })
+}
+
 export function fetchWorkoutExercises(workoutId) {
   return request(`/workouts/${workoutId}/exercises`, { requireUser: true })
 }

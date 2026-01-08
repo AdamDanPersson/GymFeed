@@ -246,6 +246,67 @@ app.put('/workouts/:id/rename', requireUser, async (req, res) => {
   }
 })
 
+app.post('/workouts/:id/copy', requireUser, async (req, res) => {
+  const { id } = req.params
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ message: 'Invalid workout id' })
+  }
+
+  try {
+    const workoutObjectId = new ObjectId(id)
+    const originalWorkout = await workoutsCollection.findOne({
+      _id: workoutObjectId,
+      userId: req.userId
+    })
+
+    if (!originalWorkout) {
+      return res.status(404).json({ message: 'Workout not found' })
+    }
+
+    // Create new workout with "(kopia)" suffix
+    const now = new Date()
+    const newWorkout = {
+      userId: req.userId,
+      name: `${originalWorkout.name} (kopia)`,
+      createdAt: now,
+      updatedAt: now
+    }
+
+    const insertResult = await workoutsCollection.insertOne(newWorkout)
+    const newWorkoutId = insertResult.insertedId
+
+    // Get all exercise links from the original workout
+    const originalLinks = await workoutExercisesCollection
+      .find({ userId: req.userId, workoutId: workoutObjectId })
+      .sort({ order: 1 })
+      .toArray()
+
+    // Create new links for the copied workout, pointing to the same exercises
+    if (originalLinks.length > 0) {
+      const newLinks = originalLinks.map((link, index) => ({
+        userId: req.userId,
+        workoutId: newWorkoutId,
+        exerciseId: link.exerciseId, // Same exercise, not a copy
+        order: index,
+        createdAt: now
+      }))
+
+      await workoutExercisesCollection.insertMany(newLinks)
+    }
+
+    return res.status(201).json({
+      _id: newWorkoutId.toString(),
+      name: newWorkout.name,
+      createdAt: newWorkout.createdAt,
+      updatedAt: newWorkout.updatedAt
+    })
+  } catch (error) {
+    console.error('Copy workout error', error)
+    return res.status(500).json({ message: 'Failed to copy workout' })
+  }
+})
+
 async function assertWorkoutOwner(workoutId, userId) {
   if (!ObjectId.isValid(workoutId)) {
     const error = new Error('Invalid workout id')

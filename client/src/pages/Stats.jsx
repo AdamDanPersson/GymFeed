@@ -16,6 +16,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   addWorkoutExercise,
+  copyWorkout,
   copyWorkoutExercise,
   createWorkout,
   deleteWorkout,
@@ -616,9 +617,24 @@ function WorkoutBoard({ user }) {
     setRenameWorkoutValue('')
   }, [])
 
-  const handleWorkoutCopy = useCallback((workoutId) => {
-    console.log('copy workout', workoutId)
+  const handleWorkoutCopy = useCallback(async (workoutId) => {
     setOpenMenuWorkoutId(null)
+    setWorkoutsError('')
+
+    try {
+      const copied = await copyWorkout(workoutId)
+      setWorkouts((prev) => {
+        const index = prev.findIndex((w) => w._id === workoutId)
+        if (index === -1) {
+          return [...prev, copied]
+        }
+        const next = [...prev]
+        next.splice(index + 1, 0, copied)
+        return next
+      })
+    } catch (error) {
+      setWorkoutsError(error.message)
+    }
   }, [])
 
   const handleWorkoutDelete = useCallback((workoutId) => {
