@@ -133,4 +133,11 @@ export function renameWorkoutExercise(workoutId, linkId, payload) {
   })
 }
 
+export function copyWorkoutExercise(workoutId, linkId) {
+  return request(`/workouts/${workoutId}/exercises/${linkId}/copy`, {
+    method: 'POST',
+    requireUser: true
+  })
+}
+
 export { getStoredUser, getStoredUserId }

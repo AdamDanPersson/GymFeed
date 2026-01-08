@@ -16,6 +16,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import {
   addWorkoutExercise,
+  copyWorkoutExercise,
   createWorkout,
   deleteWorkoutExercise,
   fetchWorkoutExercises,
@@ -489,25 +490,29 @@ function WorkoutBoard({ user }) {
     setRenameValue('')
   }, [])
 
-  const handleCopyExercise = useCallback((exerciseId) => {
+  const handleCopyExercise = useCallback(async (exerciseId) => {
+    if (!selectedWorkoutId) {
+      return
+    }
+
     setOpenMenuExerciseId(null)
+    setExercisesError('')
 
-    setExerciseLinks((prev) => {
-      const index = prev.findIndex((item) => item.linkId === exerciseId)
-      if (index === -1) {
-        return prev
-      }
-
-      const base = prev[index]
-      const copyId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
-      const duplicated = { ...base, linkId: `${exerciseId}-copy-${copyId}`, name: `${base.name} (kopia)` }
-
-      const next = [...prev]
-      next.splice(index + 1, 0, duplicated)
-      console.log('copy', duplicated.linkId, 'from', exerciseId)
-      return next
-    })
-  }, [])
+    try {
+      const copied = await copyWorkoutExercise(selectedWorkoutId, exerciseId)
+      setExerciseLinks((prev) => {
+        const index = prev.findIndex((item) => item.linkId === exerciseId)
+        if (index === -1) {
+          return [...prev, copied]
+        }
+        const next = [...prev]
+        next.splice(index + 1, 0, copied)
+        return next
+      })
+    } catch (error) {
+      setExercisesError(error.message)
+    }
+  }, [selectedWorkoutId])
 
   const handleStartMove = useCallback((exerciseId) => {
     const fallbackWorkout = workouts.find((w) => w._id !== selectedWorkoutId)

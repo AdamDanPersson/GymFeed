@@ -374,6 +374,18 @@ app.delete('/workouts/:workoutId/exercises/:linkId', requireUser, async (req, re
       return res.status(400).json({ message: 'Invalid link id' })
     }
 
+    const link = await workoutExercisesCollection.findOne({
+      _id: new ObjectId(linkId),
+      userId: req.userId,
+      workoutId: workoutObjectId
+    })
+
+    if (!link) {
+      return res.status(404).json({ message: 'Exercise link not found' })
+    }
+
+    const exerciseId = link.exerciseId
+
     const result = await workoutExercisesCollection.deleteOne({
       _id: new ObjectId(linkId),
       userId: req.userId,
@@ -383,6 +395,11 @@ app.delete('/workouts/:workoutId/exercises/:linkId', requireUser, async (req, re
     if (result.deletedCount === 0) {
       return res.status(404).json({ message: 'Exercise link not found' })
     }
+
+    await exercisesCollection.deleteOne({
+      _id: exerciseId,
+      userId: req.userId
+    })
 
     return res.status(204).end()
   } catch (error) {
@@ -433,6 +450,81 @@ app.put('/workouts/:workoutId/exercises/:linkId/rename', requireUser, async (req
       console.error('Rename exercise error', error)
     }
     return res.status(status).json({ message: error.message || 'Failed to rename exercise' })
+  }
+})
+
+app.post('/workouts/:workoutId/exercises/:linkId/copy', requireUser, async (req, res) => {
+  try {
+    const workoutObjectId = await assertWorkoutOwner(req.params.workoutId, req.userId)
+
+    const { linkId } = req.params
+    if (!ObjectId.isValid(linkId)) {
+      return res.status(400).json({ message: 'Invalid link id' })
+    }
+
+    const originalLink = await workoutExercisesCollection.findOne({
+      _id: new ObjectId(linkId),
+      userId: req.userId,
+      workoutId: workoutObjectId
+    })
+
+    if (!originalLink) {
+      return res.status(404).json({ message: 'Exercise link not found' })
+    }
+
+    const originalExercise = await exercisesCollection.findOne({
+      _id: originalLink.exerciseId,
+      userId: req.userId
+    })
+
+    if (!originalExercise) {
+      return res.status(404).json({ message: 'Exercise not found' })
+    }
+
+    const copyName = `${originalExercise.name} (kopia)`
+
+    let exerciseDoc = await exercisesCollection.findOne({ userId: req.userId, name: copyName })
+    if (!exerciseDoc) {
+      const now = new Date()
+      const newExercise = {
+        userId: req.userId,
+        name: copyName,
+        createdAt: now
+      }
+      const result = await exercisesCollection.insertOne(newExercise)
+      exerciseDoc = { ...newExercise, _id: result.insertedId }
+    }
+
+    const lastLink = await workoutExercisesCollection
+      .find({ userId: req.userId, workoutId: workoutObjectId })
+      .sort({ order: -1 })
+      .limit(1)
+      .toArray()
+
+    const nextOrder = lastLink.length > 0 ? (lastLink[0].order ?? 0) + 1 : 0
+    const linkDoc = {
+      userId: req.userId,
+      workoutId: workoutObjectId,
+      exerciseId: exerciseDoc._id,
+      order: nextOrder,
+      createdAt: new Date()
+    }
+
+    try {
+      const linkResult = await workoutExercisesCollection.insertOne(linkDoc)
+      return res.status(201).json(toLinkResponse({ ...linkDoc, _id: linkResult.insertedId }, exerciseDoc))
+    } catch (error) {
+      if (error.code === 11000) {
+        return res.status(409).json({ message: 'Exercise already exists in this workout' })
+      }
+      throw error
+    }
+  } catch (error) {
+    const status = error.status || 500
+    if (status === 500) {
+      console.error('Copy exercise error', error)
+    }
+    return res.status(status).json({ message: error.message || 'Failed to copy exercise' })
   }
 })
 
