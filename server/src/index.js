@@ -528,6 +528,78 @@ app.post('/workouts/:workoutId/exercises/:linkId/copy', requireUser, async (req,
   }
 })
 
+app.put('/workouts/:workoutId/exercises/:linkId/move', requireUser, async (req, res) => {
+  try {
+    const sourceWorkoutId = await assertWorkoutOwner(req.params.workoutId, req.userId)
+
+    const { linkId } = req.params
+    if (!ObjectId.isValid(linkId)) {
+      return res.status(400).json({ message: 'Invalid link id' })
+    }
+
+    const targetWorkoutId = typeof req.body?.targetWorkoutId === 'string' ? req.body.targetWorkoutId.trim() : ''
+    if (!targetWorkoutId || !ObjectId.isValid(targetWorkoutId)) {
+      return res.status(400).json({ message: 'Valid target workout ID is required' })
+    }
+
+    const targetWorkoutObjectId = await assertWorkoutOwner(targetWorkoutId, req.userId)
+
+    const link = await workoutExercisesCollection.findOne({
+      _id: new ObjectId(linkId),
+      userId: req.userId,
+      workoutId: sourceWorkoutId
+    })
+
+    if (!link) {
+      return res.status(404).json({ message: 'Exercise link not found' })
+    }
+
+    const exerciseId = link.exerciseId
+
+    const existingLink = await workoutExercisesCollection.findOne({
+      userId: req.userId,
+      workoutId: targetWorkoutObjectId,
+      exerciseId: exerciseId
+    })
+
+    if (existingLink) {
+      return res.status(409).json({ message: 'Exercise already exists in target workout' })
+    }
+
+    await workoutExercisesCollection.deleteOne({
+      _id: new ObjectId(linkId),
+      userId: req.userId,
+      workoutId: sourceWorkoutId
+    })
+
+    const lastLink = await workoutExercisesCollection
+      .find({ userId: req.userId, workoutId: targetWorkoutObjectId })
+      .sort({ order: -1 })
+      .limit(1)
+      .toArray()
+
+    const nextOrder = lastLink.length > 0 ? (lastLink[0].order ?? 0) + 1 : 0
+    const newLinkDoc = {
+      userId: req.userId,
+      workoutId: targetWorkoutObjectId,
+      exerciseId: exerciseId,
+      order: nextOrder,
+      createdAt: new Date()
+    }
+
+    const linkResult = await workoutExercisesCollection.insertOne(newLinkDoc)
+    const exerciseDoc = await exercisesCollection.findOne({ _id: exerciseId, userId: req.userId })
+
+    return res.json(toLinkResponse({ ...newLinkDoc, _id: linkResult.insertedId }, exerciseDoc))
+  } catch (error) {
+    const status = error.status || 500
+    if (status === 500) {
+      console.error('Move exercise error', error)
+    }
+    return res.status(status).json({ message: error.message || 'Failed to move exercise' })
+  }
+})
+
 app.put('/workouts/reorder', requireUser, async (req, res) => {
   const { workoutIds } = req.body
 

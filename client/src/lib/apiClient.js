@@ -140,4 +140,12 @@ export function copyWorkoutExercise(workoutId, linkId) {
   })
 }
 
+export function moveWorkoutExercise(workoutId, linkId, payload) {
+  return request(`/workouts/${workoutId}/exercises/${linkId}/move`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    requireUser: true
+  })
+}
+
 export { getStoredUser, getStoredUserId }

@@ -22,6 +22,7 @@ import {
   fetchWorkoutExercises,
   fetchWorkouts,
   getStoredUser,
+  moveWorkoutExercise,
   reorderWorkoutExercises,
   reorderWorkouts,
   renameWorkoutExercise
@@ -525,19 +526,24 @@ function WorkoutBoard({ user }) {
     setRenameValue('')
   }, [selectedWorkoutId, workouts])
 
-  const handleMoveConfirm = useCallback(() => {
-    if (!moveModeExerciseId || !selectedMoveWorkoutId) {
+  const handleMoveConfirm = useCallback(async () => {
+    if (!moveModeExerciseId || !selectedMoveWorkoutId || !selectedWorkoutId) {
       return
     }
 
-    console.log('move', moveModeExerciseId, 'to', selectedMoveWorkoutId)
+    setExercisesError('')
 
-    if (selectedMoveWorkoutId !== selectedWorkoutId) {
+    try {
+      await moveWorkoutExercise(selectedWorkoutId, moveModeExerciseId, {
+        targetWorkoutId: selectedMoveWorkoutId
+      })
+
       setExerciseLinks((prev) => prev.filter((item) => item.linkId !== moveModeExerciseId))
+      setMoveModeExerciseId(null)
+      setSelectedMoveWorkoutId('')
+    } catch (error) {
+      setExercisesError(error.message)
     }
-
-    setMoveModeExerciseId(null)
-    setSelectedMoveWorkoutId('')
   }, [moveModeExerciseId, selectedMoveWorkoutId, selectedWorkoutId])
 
   const handleCancelMove = useCallback(() => {
