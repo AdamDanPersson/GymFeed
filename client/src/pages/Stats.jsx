@@ -28,7 +28,8 @@ import {
   renameWorkout,
   reorderWorkoutExercises,
   reorderWorkouts,
-  renameWorkoutExercise
+  renameWorkoutExercise,
+  saveSetsBulk
 } from '../lib/apiClient'
 import './Stats.css'
 
@@ -112,6 +113,9 @@ function WorkoutBoard({ user }) {
   const [editWeight, setEditWeight] = useState('')
   const [editReps, setEditReps] = useState('')
   const [editIsDropset, setEditIsDropset] = useState(false)
+  const [savingSetsFor, setSavingSetsFor] = useState(null)
+  const [saveSuccessFor, setSaveSuccessFor] = useState(null)
+  const [saveErrorFor, setSaveErrorFor] = useState(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -732,6 +736,43 @@ function WorkoutBoard({ user }) {
     }))
   }, [])
 
+  const handleSaveSets = useCallback(async (linkId, exerciseId) => {
+    const sets = exerciseSets[linkId] || []
+    if (sets.length === 0) {
+      return
+    }
+
+    setSavingSetsFor(linkId)
+    setSaveErrorFor(null)
+    setSaveSuccessFor(null)
+
+    try {
+      const setsToSave = sets.map(set => ({
+        weight: set.weight,
+        reps: set.reps,
+        isDropSet: set.isDropset
+      }))
+
+      await saveSetsBulk(exerciseId, setsToSave)
+
+      // Clear the local sets after successful save
+      setExerciseSets((prev) => ({
+        ...prev,
+        [linkId]: []
+      }))
+
+      setSaveSuccessFor(linkId)
+      setTimeout(() => {
+        setSaveSuccessFor(null)
+      }, 3000)
+    } catch (error) {
+      console.error('Failed to save sets', error)
+      setSaveErrorFor(linkId)
+    } finally {
+      setSavingSetsFor(null)
+    }
+  }, [exerciseSets])
+
   const formatWorkoutDate = useCallback((value) => {
     if (!value) {
       return ''
@@ -866,6 +907,10 @@ function WorkoutBoard({ user }) {
                       onEditWeightChange={setEditWeight}
                       onEditRepsChange={setEditReps}
                       onEditDropsetChange={setEditIsDropset}
+                      onSaveSets={() => handleSaveSets(item.linkId, item.exerciseId)}
+                      isSavingSets={savingSetsFor === item.linkId}
+                      saveSuccess={saveSuccessFor === item.linkId}
+                      saveError={saveErrorFor === item.linkId}
                     />
                   ))}
                 </SortableContext>
@@ -1153,7 +1198,11 @@ function SortableExerciseRow({
   onDeleteSet,
   onEditWeightChange,
   onEditRepsChange,
-  onEditDropsetChange
+  onEditDropsetChange,
+  onSaveSets,
+  isSavingSets,
+  saveSuccess,
+  saveError
 }) {
   const {
     attributes,
@@ -1216,6 +1265,10 @@ function SortableExerciseRow({
       onEditWeightChange={onEditWeightChange}
       onEditRepsChange={onEditRepsChange}
       onEditDropsetChange={onEditDropsetChange}
+      onSaveSets={onSaveSets}
+      isSavingSets={isSavingSets}
+      saveSuccess={saveSuccess}
+      saveError={saveError}
       style={style}
       isDragging={isDragging}
       attributes={attributes}
@@ -1271,6 +1324,10 @@ function ExerciseRow({
   onEditWeightChange,
   onEditRepsChange,
   onEditDropsetChange,
+  onSaveSets,
+  isSavingSets,
+  saveSuccess,
+  saveError,
   style,
   isDragging,
   attributes,
@@ -1386,8 +1443,13 @@ function ExerciseRow({
       </div>
 
       {isExpanded && (
-        <div className="exercise-details">
-          <div className="exercise-details__form">
+        <>
+          <div className="exercise-history">
+            {/* Tom för tillfället - kommer visa historik */}
+          </div>
+          
+          <div className="exercise-details">
+            <div className="exercise-details__form">
             <input
               type="number"
               placeholder="Vikt (kg)"
@@ -1496,12 +1558,21 @@ function ExerciseRow({
               <button
                 type="button"
                 className="exercise-details__save-btn"
+                onClick={onSaveSets}
+                disabled={isSavingSets}
               >
-                Spara
+                {isSavingSets ? 'Sparar...' : 'Spara'}
               </button>
+              {saveSuccess && (
+                <p className="exercise-details__save-success">✓ Sets sparade!</p>
+              )}
+              {saveError && (
+                <p className="exercise-details__save-error">Kunde inte spara sets. Försök igen.</p>
+              )}
             </div>
           )}
         </div>
+        </>
       )}
     </>
   )

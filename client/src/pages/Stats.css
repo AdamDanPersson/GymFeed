@@ -703,6 +703,16 @@
   cursor: not-allowed;
 }
 
+.exercise-history {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: rgba(245, 231, 198, 0.08);
+  border-radius: 0.7rem;
+  color: #222222;
+  outline: 2px solid #222222;
+  min-height: 3rem;
+}
+
 .exercise-details {
   margin-top: 0.75rem;
   padding: 1rem;
@@ -855,6 +865,33 @@
 
 .exercise-details__save-btn:hover {
   background: #333333;
+}
+
+.exercise-details__save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.exercise-details__save-success {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem;
+  background: rgba(76, 175, 80, 0.1);
+  color: #4CAF50;
+  border-radius: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.exercise-details__save-error {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem;
+  background: rgba(229, 57, 53, 0.1);
+  color: #e53935;
+  border-radius: 0.4rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
 }
 
 .exercise-details__set-actions {

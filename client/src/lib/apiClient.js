@@ -163,4 +163,33 @@ export function moveWorkoutExercise(workoutId, linkId, payload) {
   })
 }
 
+export function saveSetsBulk(exerciseId, sets) {
+  return request(`/exercises/${exerciseId}/sets/bulk`, {
+    method: 'POST',
+    body: JSON.stringify({ sets }),
+    requireUser: true
+  })
+}
+
+export function getExerciseSets(exerciseId) {
+  return request(`/exercises/${exerciseId}/sets`, {
+    requireUser: true
+  })
+}
+
+export function updateSet(setId, payload) {
+  return request(`/sets/${setId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    requireUser: true
+  })
+}
+
+export function deleteSet(setId) {
+  return request(`/sets/${setId}`, {
+    method: 'DELETE',
+    requireUser: true
+  })
+}
+
 export { getStoredUser, getStoredUserId }
