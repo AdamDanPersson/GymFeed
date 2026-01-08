@@ -184,7 +184,24 @@ app.delete('/workouts/:id', requireUser, async (req, res) => {
       return res.status(404).json({ message: 'Workout not found' })
     }
 
+    // Find all exercise links for this workout to get exerciseIds
+    const links = await workoutExercisesCollection.find({
+      userId: req.userId,
+      workoutId: workoutObjectId
+    }).toArray()
+
+    const exerciseIds = links.map(link => link.exerciseId).filter(Boolean)
+
+    // Delete all exercise links
     await workoutExercisesCollection.deleteMany({ userId: req.userId, workoutId: workoutObjectId })
+
+    // Delete all exercises that were linked to this workout
+    if (exerciseIds.length > 0) {
+      await exercisesCollection.deleteMany({
+        _id: { $in: exerciseIds },
+        userId: req.userId
+      })
+    }
 
     return res.status(204).end()
   } catch (error) {

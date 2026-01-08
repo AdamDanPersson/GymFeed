@@ -18,6 +18,7 @@ import {
   addWorkoutExercise,
   copyWorkoutExercise,
   createWorkout,
+  deleteWorkout,
   deleteWorkoutExercise,
   fetchWorkoutExercises,
   fetchWorkouts,
@@ -94,6 +95,9 @@ function WorkoutBoard({ user }) {
   const [moveModeExerciseId, setMoveModeExerciseId] = useState(null)
   const [selectedMoveWorkoutId, setSelectedMoveWorkoutId] = useState('')
 
+  const [openMenuWorkoutId, setOpenMenuWorkoutId] = useState(null)
+  const [confirmDeleteWorkoutId, setConfirmDeleteWorkoutId] = useState(null)
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -111,6 +115,8 @@ function WorkoutBoard({ user }) {
         setRenameValue('')
         setMoveModeExerciseId(null)
         setSelectedMoveWorkoutId('')
+        setOpenMenuWorkoutId(null)
+        setConfirmDeleteWorkoutId(null)
       }
     }
 
@@ -143,6 +149,8 @@ function WorkoutBoard({ user }) {
       setRenameValue('')
       setMoveModeExerciseId(null)
       setSelectedMoveWorkoutId('')
+      setOpenMenuWorkoutId(null)
+      setConfirmDeleteWorkoutId(null)
       return
     }
 
@@ -190,6 +198,8 @@ function WorkoutBoard({ user }) {
       setRenameValue('')
       setMoveModeExerciseId(null)
       setSelectedMoveWorkoutId('')
+      setOpenMenuWorkoutId(null)
+      setConfirmDeleteWorkoutId(null)
     }
   }, [selectedWorkoutId, workouts])
 
@@ -551,6 +561,46 @@ function WorkoutBoard({ user }) {
     setSelectedMoveWorkoutId('')
   }, [])
 
+  const handleToggleWorkoutMenu = useCallback((workoutId) => {
+    setOpenMenuWorkoutId((prev) => (prev === workoutId ? null : workoutId))
+  }, [])
+
+  const handleCloseWorkoutMenu = useCallback(() => {
+    setOpenMenuWorkoutId(null)
+  }, [])
+
+  const handleWorkoutRename = useCallback((workoutId) => {
+    console.log('rename workout', workoutId)
+    setOpenMenuWorkoutId(null)
+  }, [])
+
+  const handleWorkoutCopy = useCallback((workoutId) => {
+    console.log('copy workout', workoutId)
+    setOpenMenuWorkoutId(null)
+  }, [])
+
+  const handleWorkoutDelete = useCallback((workoutId) => {
+    setConfirmDeleteWorkoutId(workoutId)
+    setOpenMenuWorkoutId(null)
+  }, [])
+
+  const handleConfirmDeleteWorkout = useCallback(async (workoutId) => {
+    setWorkoutsError('')
+    try {
+      await deleteWorkout(workoutId)
+      setWorkouts((prev) => prev.filter((w) => w._id !== workoutId))
+    } catch (error) {
+      setWorkoutsError(error.message)
+    } finally {
+      setConfirmDeleteWorkoutId(null)
+      setOpenMenuWorkoutId(null)
+    }
+  }, [])
+
+  const handleCancelDeleteWorkout = useCallback(() => {
+    setConfirmDeleteWorkoutId(null)
+  }, [])
+
   const formatWorkoutDate = useCallback((value) => {
     if (!value) {
       return ''
@@ -587,6 +637,15 @@ function WorkoutBoard({ user }) {
                 formatWorkoutDate={formatWorkoutDate}
                 onSelect={handleSelectWorkout}
                 isSelected={workout._id === selectedWorkoutId}
+                isMenuOpen={openMenuWorkoutId === workout._id}
+                onToggleMenu={() => handleToggleWorkoutMenu(workout._id)}
+                onCloseMenu={handleCloseWorkoutMenu}
+                onRequestRename={() => handleWorkoutRename(workout._id)}
+                onCopy={() => handleWorkoutCopy(workout._id)}
+                onRequestDelete={() => handleWorkoutDelete(workout._id)}
+                showDeleteConfirm={confirmDeleteWorkoutId === workout._id}
+                onConfirmDelete={() => handleConfirmDeleteWorkout(workout._id)}
+                onCancelDelete={handleCancelDeleteWorkout}
               />
             ))}
           </SortableContext>
@@ -739,7 +798,7 @@ function WorkoutBoard({ user }) {
   )
 }
 
-function SortableWorkoutTile({ workout, formatWorkoutDate, onSelect, isSelected }) {
+function SortableWorkoutTile({ workout, formatWorkoutDate, onSelect, isSelected, isMenuOpen, onToggleMenu, onCloseMenu, onRequestRename, onCopy, onRequestDelete, showDeleteConfirm, onConfirmDelete, onCancelDelete }) {
   const {
     attributes,
     listeners,
@@ -808,6 +867,37 @@ function SortableWorkoutTile({ workout, formatWorkoutDate, onSelect, isSelected 
         <time dateTime={workout.createdAt}>
           {formatWorkoutDate(workout.createdAt)}
         </time>
+      </div>
+      <div className="pass-tile__actions">
+        <button
+          type="button"
+          className="pass-tile__menu-btn"
+          aria-haspopup="menu"
+          aria-expanded={isMenuOpen}
+          aria-label="Öppna meny för passet"
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggleMenu?.()
+          }}
+        >
+          <span aria-hidden="true">⋯</span>
+        </button>
+        {isMenuOpen && (
+          <WorkoutMenu
+            isOpen={isMenuOpen}
+            onClose={onCloseMenu}
+            onRename={onRequestRename}
+            onCopy={onCopy}
+            onDelete={onRequestDelete}
+          />
+        )}
+        {showDeleteConfirm && (
+          <ConfirmDialog
+            message="Är du säker?"
+            onConfirm={onConfirmDelete}
+            onCancel={onCancelDelete}
+          />
+        )}
       </div>
       <button
         type="button"
@@ -1094,6 +1184,57 @@ function ExerciseMenu({ isOpen, onClose, onRename, onCopy, onMove, onDelete, anc
       <button type="button" className="exercise-menu__item" role="menuitem" onClick={() => { onCopy?.(); onClose?.() }}>Kopiera</button>
       <button type="button" className="exercise-menu__item" role="menuitem" onClick={() => { onMove?.(); onClose?.() }}>Flytta till annat pass</button>
       <button type="button" className="exercise-menu__item exercise-menu__item--danger" role="menuitem" onClick={() => { onDelete?.(); onClose?.() }}>Ta bort</button>
+    </div>
+  )
+}
+
+function WorkoutMenu({ isOpen, onClose, onRename, onCopy, onDelete }) {
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handlePointer = (event) => {
+      if (menuRef.current?.contains(event.target)) {
+        return
+      }
+      onClose?.()
+    }
+
+    const handleKey = (event) => {
+      if (event.key === 'Escape') {
+        onClose?.()
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointer)
+    document.addEventListener('touchstart', handlePointer)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handlePointer)
+      document.removeEventListener('touchstart', handlePointer)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [isOpen, onClose])
+
+  useEffect(() => {
+    if (isOpen && menuRef.current) {
+      const firstButton = menuRef.current.querySelector('button')
+      firstButton?.focus()
+    }
+  }, [isOpen])
+
+  if (!isOpen) {
+    return null
+  }
+
+  return (
+    <div className="workout-menu" role="menu" ref={menuRef} tabIndex={-1}>
+      <button type="button" className="workout-menu__item" role="menuitem" onClick={() => { onRename?.(); onClose?.() }}>Byt namn</button>
+      <button type="button" className="workout-menu__item" role="menuitem" onClick={() => { onCopy?.(); onClose?.() }}>Kopiera</button>
+      <button type="button" className="workout-menu__item workout-menu__item--danger" role="menuitem" onClick={() => { onDelete?.(); onClose?.() }}>Ta bort</button>
     </div>
   )
 }
