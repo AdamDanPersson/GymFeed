@@ -192,15 +192,24 @@ app.delete('/workouts/:id', requireUser, async (req, res) => {
 
     const exerciseIds = links.map(link => link.exerciseId).filter(Boolean)
 
-    // Delete all exercise links
+    // Delete all exercise links for this workout
     await workoutExercisesCollection.deleteMany({ userId: req.userId, workoutId: workoutObjectId })
 
-    // Delete all exercises that were linked to this workout
+    // Only delete exercises that are not used in any other workout
     if (exerciseIds.length > 0) {
-      await exercisesCollection.deleteMany({
-        _id: { $in: exerciseIds },
-        userId: req.userId
-      })
+      for (const exerciseId of exerciseIds) {
+        const otherLinks = await workoutExercisesCollection.countDocuments({
+          userId: req.userId,
+          exerciseId: exerciseId
+        })
+
+        if (otherLinks === 0) {
+          await exercisesCollection.deleteOne({
+            _id: exerciseId,
+            userId: req.userId
+          })
+        }
+      }
     }
 
     return res.status(204).end()
@@ -510,10 +519,18 @@ app.delete('/workouts/:workoutId/exercises/:linkId', requireUser, async (req, re
       return res.status(404).json({ message: 'Exercise link not found' })
     }
 
-    await exercisesCollection.deleteOne({
-      _id: exerciseId,
-      userId: req.userId
+    // Only delete the exercise if it's not used in any other workout
+    const otherLinks = await workoutExercisesCollection.countDocuments({
+      userId: req.userId,
+      exerciseId: exerciseId
     })
+
+    if (otherLinks === 0) {
+      await exercisesCollection.deleteOne({
+        _id: exerciseId,
+        userId: req.userId
+      })
+    }
 
     return res.status(204).end()
   } catch (error) {
