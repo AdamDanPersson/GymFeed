@@ -1369,6 +1369,50 @@
   color: #f5e7c6;
 }
 
+.post-creator__type-toggle {
+  display: flex;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 0.75rem;
+}
+
+.post-creator__type-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  color: rgba(245, 231, 198, 0.6);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.post-creator__type-btn svg {
+  opacity: 0.7;
+}
+
+.post-creator__type-btn:hover {
+  background: rgba(245, 231, 198, 0.05);
+  color: rgba(245, 231, 198, 0.8);
+}
+
+.post-creator__type-btn--active {
+  background: rgba(99, 102, 241, 0.3);
+  color: #a5b4fc;
+}
+
+.post-creator__type-btn--active svg {
+  opacity: 1;
+}
+
 .post-creator__close {
   background: transparent;
   border: none;
@@ -1416,7 +1460,8 @@
 }
 
 .post-creator__input,
-.post-creator__select {
+.post-creator__select,
+.post-creator__textarea {
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(245, 231, 198, 0.25);
   border-radius: 0.75rem;
@@ -1426,10 +1471,32 @@
   transition: border-color 0.2s ease;
 }
 
+.post-creator__textarea {
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
 .post-creator__input:focus,
-.post-creator__select:focus {
+.post-creator__select:focus,
+.post-creator__textarea:focus {
   outline: none;
   border-color: rgba(245, 231, 198, 0.5);
+}
+
+.post-creator__file-input {
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px dashed rgba(245, 231, 198, 0.25);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  color: rgba(245, 231, 198, 0.7);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+.post-creator__file-input:hover {
+  border-color: rgba(245, 231, 198, 0.4);
 }
 
 .post-creator__select {
@@ -1452,6 +1519,14 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.post-creator__chart-btn svg {
+  opacity: 0.7;
 }
 
 .post-creator__chart-btn:hover {
@@ -1463,6 +1538,10 @@
   background: rgba(99, 102, 241, 0.25);
   border-color: #6366f1;
   color: #a5b4fc;
+}
+
+.post-creator__chart-btn--active svg {
+  opacity: 1;
 }
 
 .post-creator__preview {
@@ -1494,6 +1573,14 @@
   color: rgba(245, 231, 198, 0.4);
   font-size: 1rem;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.post-creator__preview-placeholder svg {
+  opacity: 0.5;
 }
 
 .post-creator__actions {

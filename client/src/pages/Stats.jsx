@@ -2200,6 +2200,7 @@ function MoveDialog({ workouts, currentWorkoutId, value, onChange, onConfirm, on
 function PostBoard({ user }) {
   const [posts, setPosts] = useState([])
   const [isCreatingPost, setIsCreatingPost] = useState(false)
+  const [postType, setPostType] = useState('graph') // 'graph' or 'image'
   const [postTitle, setPostTitle] = useState('')
   const [selectedChartType, setSelectedChartType] = useState('bar')
   const [selectedMetric, setSelectedMetric] = useState('maxWeight')
@@ -2232,6 +2233,7 @@ function PostBoard({ user }) {
 
   const handleCancelPost = useCallback(() => {
     setPostTitle('')
+    setPostType('graph')
     setSelectedChartType('bar')
     setSelectedMetric('maxWeight')
     setIsCreatingPost(false)
@@ -2314,7 +2316,7 @@ function PostBoard({ user }) {
       {isCreatingPost && (
         <div className="post-creator">
           <div className="post-creator__header">
-            <h3>Skapa grafpost</h3>
+            <h3>Skapa post</h3>
             <button 
               type="button" 
               className="post-creator__close"
@@ -2322,6 +2324,34 @@ function PostBoard({ user }) {
               aria-label="Stäng"
             >
               ✕
+            </button>
+          </div>
+
+          {/* Post Type Toggle */}
+          <div className="post-creator__type-toggle">
+            <button
+              type="button"
+              className={`post-creator__type-btn ${postType === 'graph' ? 'post-creator__type-btn--active' : ''}`}
+              onClick={() => setPostType('graph')}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="20" x2="12" y2="10"/>
+                <line x1="18" y1="20" x2="18" y2="4"/>
+                <line x1="6" y1="20" x2="6" y2="16"/>
+              </svg>
+              Graf
+            </button>
+            <button
+              type="button"
+              className={`post-creator__type-btn ${postType === 'image' ? 'post-creator__type-btn--active' : ''}`}
+              onClick={() => setPostType('image')}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              Bild
             </button>
           </div>
 
@@ -2342,70 +2372,144 @@ function PostBoard({ user }) {
               </label>
             </div>
 
-            <div className="post-creator__section">
-              <label className="post-creator__label">
-                <span>Övning</span>
-                <select 
-                  className="post-creator__select"
-                  defaultValue=""
-                  required
-                >
-                  <option value="" disabled>Välj övning...</option>
-                  <option value="1">Bänkpress</option>
-                  <option value="2">Squats</option>
-                  <option value="3">Deadlift</option>
-                  {/* TODO: Dynamic list from exercises */}
-                </select>
-              </label>
-            </div>
-
-            <div className="post-creator__section">
-              <label className="post-creator__label">
-                <span>Graftyp</span>
-                <div className="post-creator__chart-type">
-                  <button
-                    type="button"
-                    className={`post-creator__chart-btn ${selectedChartType === 'bar' ? 'post-creator__chart-btn--active' : ''}`}
-                    onClick={() => setSelectedChartType('bar')}
-                  >
-                    📊 Staplar
-                  </button>
-                  <button
-                    type="button"
-                    className={`post-creator__chart-btn ${selectedChartType === 'line' ? 'post-creator__chart-btn--active' : ''}`}
-                    onClick={() => setSelectedChartType('line')}
-                  >
-                    📈 Linje
-                  </button>
+            {postType === 'graph' ? (
+              <>
+                <div className="post-creator__section">
+                  <label className="post-creator__label">
+                    <span>Övning</span>
+                    <select 
+                      className="post-creator__select"
+                      defaultValue=""
+                      required
+                    >
+                      <option value="" disabled>Välj övning...</option>
+                      <option value="1">Bänkpress</option>
+                      <option value="2">Squats</option>
+                      <option value="3">Deadlift</option>
+                      {/* TODO: Dynamic list from exercises */}
+                    </select>
+                  </label>
                 </div>
-              </label>
-            </div>
 
-            <div className="post-creator__section">
-              <label className="post-creator__label">
-                <span>Metric</span>
-                <select 
-                  className="post-creator__select"
-                  value={selectedMetric}
-                  onChange={(e) => setSelectedMetric(e.target.value)}
-                >
-                  <option value="maxWeight">Max vikt (top set)</option>
-                  <option value="totalVolume">Total volym</option>
-                  <option value="e1rm">Estimerat 1RM</option>
-                  <option value="setCount">Antal set</option>
-                  {selectedChartType === 'bar' && <option value="allSets">Alla set (detaljvy)</option>}
-                </select>
-              </label>
-            </div>
-
-            <div className="post-creator__preview">
-              <p className="post-creator__preview-label">Förhandsvisning</p>
-              <div className="post-creator__preview-chart">
-                <div className="post-creator__preview-placeholder">
-                  {selectedChartType === 'bar' ? '📊' : '📈'} Graf kommer visas här
+                <div className="post-creator__section">
+                  <label className="post-creator__label">
+                    <span>Graftyp</span>
+                    <div className="post-creator__chart-type">
+                      <button
+                        type="button"
+                        className={`post-creator__chart-btn ${selectedChartType === 'bar' ? 'post-creator__chart-btn--active' : ''}`}
+                        onClick={() => setSelectedChartType('bar')}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="12" y1="20" x2="12" y2="10"/>
+                          <line x1="18" y1="20" x2="18" y2="4"/>
+                          <line x1="6" y1="20" x2="6" y2="16"/>
+                        </svg>
+                        Staplar
+                      </button>
+                      <button
+                        type="button"
+                        className={`post-creator__chart-btn ${selectedChartType === 'line' ? 'post-creator__chart-btn--active' : ''}`}
+                        onClick={() => setSelectedChartType('line')}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                        Linje
+                      </button>
+                    </div>
+                  </label>
                 </div>
-              </div>
-            </div>
+
+                <div className="post-creator__section">
+                  <label className="post-creator__label">
+                    <span>Metric</span>
+                    <select 
+                      className="post-creator__select"
+                      value={selectedMetric}
+                      onChange={(e) => setSelectedMetric(e.target.value)}
+                    >
+                      <option value="maxWeight">Max vikt (top set)</option>
+                      <option value="totalVolume">Total volym</option>
+                      <option value="e1rm">Estimerat 1RM</option>
+                      <option value="setCount">Antal set</option>
+                      {selectedChartType === 'bar' && <option value="allSets">Alla set (detaljvy)</option>}
+                    </select>
+                  </label>
+                </div>
+
+                <div className="post-creator__section">
+                  <label className="post-creator__label">
+                    <span>Beskrivning (valfritt)</span>
+                    <textarea
+                      className="post-creator__textarea"
+                      placeholder="Skriv en kort beskrivning om din progression..."
+                      rows={3}
+                      maxLength={500}
+                    />
+                  </label>
+                </div>
+
+                <div className="post-creator__preview">
+                  <p className="post-creator__preview-label">Förhandsvisning</p>
+                  <div className="post-creator__preview-chart">
+                    <div className="post-creator__preview-placeholder">
+                      {selectedChartType === 'bar' ? (
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="12" y1="20" x2="12" y2="10"/>
+                          <line x1="18" y1="20" x2="18" y2="4"/>
+                          <line x1="6" y1="20" x2="6" y2="16"/>
+                        </svg>
+                      ) : (
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                      )}
+                      <span>Graf kommer visas här</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="post-creator__section">
+                  <label className="post-creator__label">
+                    <span>Ladda upp bild</span>
+                    <input
+                      type="file"
+                      className="post-creator__file-input"
+                      accept="image/*"
+                    />
+                  </label>
+                </div>
+
+                <div className="post-creator__section">
+                  <label className="post-creator__label">
+                    <span>Beskrivning (valfritt)</span>
+                    <textarea
+                      className="post-creator__textarea"
+                      placeholder="Skriv en kort beskrivning..."
+                      rows={4}
+                      maxLength={500}
+                    />
+                  </label>
+                </div>
+
+                <div className="post-creator__preview">
+                  <p className="post-creator__preview-label">Förhandsvisning</p>
+                  <div className="post-creator__preview-chart">
+                    <div className="post-creator__preview-placeholder">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                      <span>Bild kommer visas här</span>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="post-creator__actions">
               <button 
