@@ -39,6 +39,18 @@ function AppLayout() {
     navigate('/login')
   }, [navigate])
 
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isLoggedIn) {
+      navigate('/login', { replace: true })
+    }
+  }, [isLoggedIn, navigate])
+
+  // Don't render if not logged in
+  if (!isLoggedIn) {
+    return null
+  }
+
   return (
     <div className="nav-layout">
       <div className="nav-layout__content">
