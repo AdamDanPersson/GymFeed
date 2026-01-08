@@ -772,6 +772,62 @@
   letter-spacing: 0.05em;
 }
 
+.exercise-history__chart-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  gap: 1rem;
+}
+
+.exercise-history__chart-type-toggle {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.exercise-history__chart-btn {
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(34, 34, 34, 0.2);
+  border-radius: 0.4rem;
+  color: #222222;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.exercise-history__chart-btn:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.exercise-history__chart-btn--active {
+  background: #f5e7c6;
+  border-color: #222222;
+  font-weight: 600;
+}
+
+.exercise-history__chart-metric {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.exercise-history__chart-select {
+  padding: 0.5rem 0.75rem;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(34, 34, 34, 0.2);
+  border-radius: 0.4rem;
+  color: #222222;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.exercise-history__chart-select:hover {
+  background: rgba(255, 255, 255, 0.7);
+}
+
 .exercise-details {
   margin-top: 0.75rem;
   padding: 1rem;

@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   DndContext,
   closestCenter,
@@ -119,6 +120,8 @@ function WorkoutBoard({ user }) {
   const [saveErrorFor, setSaveErrorFor] = useState(null)
   const [exerciseHistory, setExerciseHistory] = useState({})
   const [loadingHistoryFor, setLoadingHistoryFor] = useState(null)
+  const [chartType, setChartType] = useState('bar') // 'bar' or 'line'
+  const [chartMetric, setChartMetric] = useState('maxWeight') // 'maxWeight', 'totalVolume', etc.
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -950,6 +953,10 @@ function WorkoutBoard({ user }) {
                       isSavingSets={savingSetsFor === item.linkId}
                       saveSuccess={saveSuccessFor === item.linkId}
                       saveError={saveErrorFor === item.linkId}
+                      chartType={chartType}
+                      onChartTypeChange={setChartType}
+                      chartMetric={chartMetric}
+                      onChartMetricChange={setChartMetric}
                     />
                   ))}
                 </SortableContext>
@@ -1243,7 +1250,11 @@ function SortableExerciseRow({
   onSaveSets,
   isSavingSets,
   saveSuccess,
-  saveError
+  saveError,
+  chartType,
+  onChartTypeChange,
+  chartMetric,
+  onChartMetricChange
 }) {
   const {
     attributes,
@@ -1312,6 +1323,10 @@ function SortableExerciseRow({
       isSavingSets={isSavingSets}
       saveSuccess={saveSuccess}
       saveError={saveError}
+      chartType={chartType}
+      onChartTypeChange={onChartTypeChange}
+      chartMetric={chartMetric}
+      onChartMetricChange={onChartMetricChange}
       style={style}
       isDragging={isDragging}
       attributes={attributes}
@@ -1373,6 +1388,10 @@ function ExerciseRow({
   isSavingSets,
   saveSuccess,
   saveError,
+  chartType,
+  onChartTypeChange,
+  chartMetric,
+  onChartMetricChange,
   style,
   isDragging,
   attributes,
@@ -1380,6 +1399,25 @@ function ExerciseRow({
   setNodeRef
 }) {
   const menuButtonRef = useRef(null)
+
+  // Process history data for chart
+  const chartData = useMemo(() => {
+    if (!exerciseHistory || !exerciseHistory.groups || exerciseHistory.groups.length === 0) {
+      return []
+    }
+
+    return exerciseHistory.groups.map((group) => {
+      const maxWeight = Math.max(...group.sets.map(s => parseFloat(s.weight) || 0))
+      const date = new Date(group.date).toLocaleDateString('sv-SE', { 
+        month: 'short', 
+        day: 'numeric' 
+      })
+      return {
+        date,
+        maxWeight
+      }
+    }).reverse() // Reverse to show oldest first
+  }, [exerciseHistory])
 
   return (
     <>
@@ -1514,7 +1552,57 @@ function ExerciseRow({
               )}
             </div>
             <div className="exercise-history__content">
-              {/* Resterande utrymmet */}
+              <div className="exercise-history__chart-controls">
+                <div className="exercise-history__chart-type-toggle">
+                  <button
+                    type="button"
+                    className={`exercise-history__chart-btn ${chartType === 'bar' ? 'exercise-history__chart-btn--active' : ''}`}
+                    onClick={() => onChartTypeChange('bar')}
+                  >
+                    Staplar
+                  </button>
+                  <button
+                    type="button"
+                    className={`exercise-history__chart-btn ${chartType === 'line' ? 'exercise-history__chart-btn--active' : ''}`}
+                    onClick={() => onChartTypeChange('line')}
+                  >
+                    Linje
+                  </button>
+                </div>
+                <div className="exercise-history__chart-metric">
+                  <select
+                    value={chartMetric}
+                    onChange={(e) => onChartMetricChange(e.target.value)}
+                    className="exercise-history__chart-select"
+                  >
+                    <option value="maxWeight">Max vikt</option>
+                  </select>
+                </div>
+              </div>
+
+              {chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  {chartType === 'bar' ? (
+                    <BarChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="maxWeight" fill="#8884d8" />
+                    </BarChart>
+                  ) : (
+                    <LineChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip />
+                      <Line type="monotone" dataKey="maxWeight" stroke="#8884d8" strokeWidth={2} />
+                    </LineChart>
+                  )}
+                </ResponsiveContainer>
+              ) : (
+                <p className="exercise-history__empty">Ingen data att visa</p>
+              )}
             </div>
           </div>
           
