@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   DndContext,
@@ -17,6 +17,7 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   addWorkoutExercise,
   createWorkout,
+  deleteWorkoutExercise,
   fetchWorkoutExercises,
   fetchWorkouts,
   getStoredUser,
@@ -82,6 +83,13 @@ function WorkoutBoard({ user }) {
   const [isSavingExercise, setIsSavingExercise] = useState(false)
   const [isReorderingExercises, setIsReorderingExercises] = useState(false)
 
+  const [openMenuExerciseId, setOpenMenuExerciseId] = useState(null)
+  const [confirmDeleteExerciseId, setConfirmDeleteExerciseId] = useState(null)
+  const [renameModeExerciseId, setRenameModeExerciseId] = useState(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [moveModeExerciseId, setMoveModeExerciseId] = useState(null)
+  const [selectedMoveWorkoutId, setSelectedMoveWorkoutId] = useState('')
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -89,6 +97,22 @@ function WorkoutBoard({ user }) {
       }
     })
   )
+
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setOpenMenuExerciseId(null)
+        setConfirmDeleteExerciseId(null)
+        setRenameModeExerciseId(null)
+        setRenameValue('')
+        setMoveModeExerciseId(null)
+        setSelectedMoveWorkoutId('')
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   useEffect(() => {
     if (!user) {
@@ -109,6 +133,12 @@ function WorkoutBoard({ user }) {
       setNewExerciseName('')
       setIsSavingExercise(false)
       setIsReorderingExercises(false)
+      setOpenMenuExerciseId(null)
+      setConfirmDeleteExerciseId(null)
+      setRenameModeExerciseId(null)
+      setRenameValue('')
+      setMoveModeExerciseId(null)
+      setSelectedMoveWorkoutId('')
       return
     }
 
@@ -150,8 +180,33 @@ function WorkoutBoard({ user }) {
       setExercisesError('')
       setIsAddingExercise(false)
       setNewExerciseName('')
+      setOpenMenuExerciseId(null)
+      setConfirmDeleteExerciseId(null)
+      setRenameModeExerciseId(null)
+      setRenameValue('')
+      setMoveModeExerciseId(null)
+      setSelectedMoveWorkoutId('')
     }
   }, [selectedWorkoutId, workouts])
+
+  useEffect(() => {
+    const ids = exerciseLinks.map((item) => item.linkId)
+
+    if (openMenuExerciseId && !ids.includes(openMenuExerciseId)) {
+      setOpenMenuExerciseId(null)
+    }
+    if (confirmDeleteExerciseId && !ids.includes(confirmDeleteExerciseId)) {
+      setConfirmDeleteExerciseId(null)
+    }
+    if (renameModeExerciseId && !ids.includes(renameModeExerciseId)) {
+      setRenameModeExerciseId(null)
+      setRenameValue('')
+    }
+    if (moveModeExerciseId && !ids.includes(moveModeExerciseId)) {
+      setMoveModeExerciseId(null)
+      setSelectedMoveWorkoutId('')
+    }
+  }, [confirmDeleteExerciseId, exerciseLinks, moveModeExerciseId, openMenuExerciseId, renameModeExerciseId])
 
   const selectedWorkout = useMemo(() => {
     if (!selectedWorkoutId) {
@@ -347,6 +402,131 @@ function WorkoutBoard({ user }) {
     [newExerciseName, selectedWorkoutId]
   )
 
+  const handleToggleExerciseMenu = useCallback((exerciseId) => {
+    setExercisesError('')
+    setOpenMenuExerciseId((prev) => (prev === exerciseId ? null : exerciseId))
+    setConfirmDeleteExerciseId(null)
+    setRenameModeExerciseId(null)
+    setRenameValue('')
+    setMoveModeExerciseId(null)
+    setSelectedMoveWorkoutId('')
+  }, [])
+
+  const handleRequestDelete = useCallback((exerciseId) => {
+    setConfirmDeleteExerciseId(exerciseId)
+    setOpenMenuExerciseId(null)
+    setRenameModeExerciseId(null)
+    setRenameValue('')
+    setMoveModeExerciseId(null)
+    setSelectedMoveWorkoutId('')
+  }, [])
+
+  const handleConfirmDelete = useCallback(async (exerciseId) => {
+    if (!selectedWorkoutId) {
+      return
+    }
+
+    setExercisesError('')
+    try {
+      await deleteWorkoutExercise(selectedWorkoutId, exerciseId)
+      setExerciseLinks((prev) => prev.filter((item) => item.linkId !== exerciseId))
+    } catch (error) {
+      setExercisesError(error.message)
+    } finally {
+      setConfirmDeleteExerciseId(null)
+      setOpenMenuExerciseId(null)
+    }
+  }, [selectedWorkoutId])
+
+  const handleCancelDelete = useCallback(() => {
+    setConfirmDeleteExerciseId(null)
+  }, [])
+
+  const handleStartRename = useCallback((exerciseId, currentName) => {
+    setRenameModeExerciseId(exerciseId)
+    setRenameValue(currentName || '')
+    setOpenMenuExerciseId(null)
+    setConfirmDeleteExerciseId(null)
+    setMoveModeExerciseId(null)
+    setSelectedMoveWorkoutId('')
+  }, [])
+
+  const handleRenameSave = useCallback((exerciseId) => {
+    if (renameModeExerciseId !== exerciseId) {
+      return
+    }
+
+    const trimmed = renameValue.trim()
+    if (!trimmed) {
+      setExercisesError('Ange ett namn för att spara')
+      return
+    }
+
+    setExercisesError('')
+    setExerciseLinks((prev) => prev.map((item) => (
+      item.linkId === exerciseId ? { ...item, name: trimmed } : item
+    )))
+    console.log('rename', exerciseId, trimmed)
+    setRenameModeExerciseId(null)
+    setRenameValue('')
+  }, [renameModeExerciseId, renameValue])
+
+  const handleCancelRename = useCallback(() => {
+    setRenameModeExerciseId(null)
+    setRenameValue('')
+  }, [])
+
+  const handleCopyExercise = useCallback((exerciseId) => {
+    setOpenMenuExerciseId(null)
+
+    setExerciseLinks((prev) => {
+      const index = prev.findIndex((item) => item.linkId === exerciseId)
+      if (index === -1) {
+        return prev
+      }
+
+      const base = prev[index]
+      const copyId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`
+      const duplicated = { ...base, linkId: `${exerciseId}-copy-${copyId}`, name: `${base.name} (kopia)` }
+
+      const next = [...prev]
+      next.splice(index + 1, 0, duplicated)
+      console.log('copy', duplicated.linkId, 'from', exerciseId)
+      return next
+    })
+  }, [])
+
+  const handleStartMove = useCallback((exerciseId) => {
+    const fallbackWorkout = workouts.find((w) => w._id !== selectedWorkoutId)
+
+    setMoveModeExerciseId(exerciseId)
+    setSelectedMoveWorkoutId(fallbackWorkout?._id || '')
+    setOpenMenuExerciseId(null)
+    setConfirmDeleteExerciseId(null)
+    setRenameModeExerciseId(null)
+    setRenameValue('')
+  }, [selectedWorkoutId, workouts])
+
+  const handleMoveConfirm = useCallback(() => {
+    if (!moveModeExerciseId || !selectedMoveWorkoutId) {
+      return
+    }
+
+    console.log('move', moveModeExerciseId, 'to', selectedMoveWorkoutId)
+
+    if (selectedMoveWorkoutId !== selectedWorkoutId) {
+      setExerciseLinks((prev) => prev.filter((item) => item.linkId !== moveModeExerciseId))
+    }
+
+    setMoveModeExerciseId(null)
+    setSelectedMoveWorkoutId('')
+  }, [moveModeExerciseId, selectedMoveWorkoutId, selectedWorkoutId])
+
+  const handleCancelMove = useCallback(() => {
+    setMoveModeExerciseId(null)
+    setSelectedMoveWorkoutId('')
+  }, [])
+
   const formatWorkoutDate = useCallback((value) => {
     if (!value) {
       return ''
@@ -419,7 +599,31 @@ function WorkoutBoard({ user }) {
               >
                 <SortableContext items={exerciseLinks.map((item) => item.linkId)} strategy={rectSortingStrategy}>
                   {exerciseLinks.map((item) => (
-                    <SortableExerciseRow key={item.linkId} item={item} />
+                    <SortableExerciseRow
+                      key={item.linkId}
+                      item={item}
+                      workouts={workouts}
+                      currentWorkoutId={selectedWorkoutId}
+                      isMenuOpen={openMenuExerciseId === item.linkId}
+                      onToggleMenu={() => handleToggleExerciseMenu(item.linkId)}
+                      onRequestRename={() => handleStartRename(item.linkId, item.name)}
+                      onCopy={() => handleCopyExercise(item.linkId)}
+                      onRequestDelete={() => handleRequestDelete(item.linkId)}
+                      showDeleteConfirm={confirmDeleteExerciseId === item.linkId}
+                      onConfirmDelete={() => handleConfirmDelete(item.linkId)}
+                      onCancelDelete={handleCancelDelete}
+                      isRenaming={renameModeExerciseId === item.linkId}
+                      renameValue={renameValue}
+                      onRenameValueChange={setRenameValue}
+                      onRenameSave={() => handleRenameSave(item.linkId)}
+                      onRenameCancel={handleCancelRename}
+                      isMoving={moveModeExerciseId === item.linkId}
+                      moveTargetId={selectedMoveWorkoutId}
+                      onMoveTargetChange={setSelectedMoveWorkoutId}
+                      onMoveStart={() => handleStartMove(item.linkId)}
+                      onMoveConfirm={handleMoveConfirm}
+                      onMoveCancel={handleCancelMove}
+                    />
                   ))}
                 </SortableContext>
               </DndContext>
@@ -603,7 +807,30 @@ function SortableWorkoutTile({ workout, formatWorkoutDate, onSelect, isSelected 
   )
 }
 
-function SortableExerciseRow({ item }) {
+function SortableExerciseRow({
+  item,
+  workouts,
+  currentWorkoutId,
+  isMenuOpen,
+  onToggleMenu,
+  onRequestRename,
+  onCopy,
+  onRequestDelete,
+  showDeleteConfirm,
+  onConfirmDelete,
+  onCancelDelete,
+  isRenaming,
+  renameValue,
+  onRenameValueChange,
+  onRenameSave,
+  onRenameCancel,
+  isMoving,
+  moveTargetId,
+  onMoveTargetChange,
+  onMoveStart,
+  onMoveConfirm,
+  onMoveCancel
+}) {
   const {
     attributes,
     listeners,
@@ -619,10 +846,74 @@ function SortableExerciseRow({ item }) {
   }
 
   return (
+    <ExerciseRow
+      item={item}
+      workouts={workouts}
+      currentWorkoutId={currentWorkoutId}
+      isMenuOpen={isMenuOpen}
+      onToggleMenu={onToggleMenu}
+      onRequestRename={onRequestRename}
+      onCopy={onCopy}
+      onRequestDelete={onRequestDelete}
+      showDeleteConfirm={showDeleteConfirm}
+      onConfirmDelete={onConfirmDelete}
+      onCancelDelete={onCancelDelete}
+      isRenaming={isRenaming}
+      renameValue={renameValue}
+      onRenameValueChange={onRenameValueChange}
+      onRenameSave={onRenameSave}
+      onRenameCancel={onRenameCancel}
+      isMoving={isMoving}
+      moveTargetId={moveTargetId}
+      onMoveTargetChange={onMoveTargetChange}
+      onMoveStart={onMoveStart}
+      onMoveConfirm={onMoveConfirm}
+      onMoveCancel={onMoveCancel}
+      style={style}
+      isDragging={isDragging}
+      attributes={attributes}
+      listeners={listeners}
+      setNodeRef={setNodeRef}
+    />
+  )
+}
+
+function ExerciseRow({
+  item,
+  workouts,
+  currentWorkoutId,
+  isMenuOpen,
+  onToggleMenu,
+  onRequestRename,
+  onCopy,
+  onRequestDelete,
+  showDeleteConfirm,
+  onConfirmDelete,
+  onCancelDelete,
+  isRenaming,
+  renameValue,
+  onRenameValueChange,
+  onRenameSave,
+  onRenameCancel,
+  isMoving,
+  moveTargetId,
+  onMoveTargetChange,
+  onMoveStart,
+  onMoveConfirm,
+  onMoveCancel,
+  style,
+  isDragging,
+  attributes,
+  listeners,
+  setNodeRef
+}) {
+  const menuButtonRef = useRef(null)
+
+  return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`exercise-row ${isDragging ? 'exercise-row--dragging' : ''}`}
+      className={`exercise-row ${isDragging ? 'exercise-row--dragging' : ''} ${(isMenuOpen || showDeleteConfirm || isMoving) ? 'exercise-row--layer' : ''}`}
     >
       <button
         type="button"
@@ -643,7 +934,171 @@ function SortableExerciseRow({ item }) {
           <circle cx="12" cy="13" r="1.5" />
         </svg>
       </button>
-      <div className="exercise-row__name">{item.name}</div>
+
+      <div className="exercise-row__content">
+        {isRenaming ? (
+          <form
+            className="exercise-rename"
+            onSubmit={(event) => {
+              event.preventDefault()
+              onRenameSave?.()
+            }}
+          >
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(event) => onRenameValueChange?.(event.target.value)}
+              maxLength={60}
+              autoFocus
+            />
+            <div className="exercise-rename__actions">
+              <button type="submit" className="exercise-rename__primary">Spara</button>
+              <button type="button" className="exercise-rename__secondary" onClick={onRenameCancel}>Avbryt</button>
+            </div>
+          </form>
+        ) : (
+          <div className="exercise-row__name">{item.name}</div>
+        )}
+      </div>
+
+      <div className="exercise-row__actions">
+        <button
+          ref={menuButtonRef}
+          type="button"
+          className="exercise-row__menu-btn"
+          aria-haspopup="menu"
+          aria-expanded={isMenuOpen}
+          aria-label="Öppna meny för övningen"
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggleMenu?.()
+          }}
+        >
+          <span aria-hidden="true">⋯</span>
+        </button>
+
+        <ExerciseMenu
+          isOpen={isMenuOpen}
+          onClose={onToggleMenu}
+          onRename={onRequestRename}
+          onCopy={onCopy}
+          onMove={onMoveStart}
+          onDelete={onRequestDelete}
+          anchorRef={menuButtonRef}
+        />
+
+        {showDeleteConfirm && (
+          <ConfirmDialog
+            message="Är du säker?"
+            onConfirm={onConfirmDelete}
+            onCancel={onCancelDelete}
+          />
+        )}
+
+        {isMoving && (
+          <MoveDialog
+            workouts={workouts}
+            currentWorkoutId={currentWorkoutId}
+            value={moveTargetId}
+            onChange={onMoveTargetChange}
+            onConfirm={onMoveConfirm}
+            onCancel={onMoveCancel}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ExerciseMenu({ isOpen, onClose, onRename, onCopy, onMove, onDelete, anchorRef }) {
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (!isOpen) {
+      return
+    }
+
+    const handlePointer = (event) => {
+      if (menuRef.current?.contains(event.target)) {
+        return
+      }
+      if (anchorRef?.current?.contains(event.target)) {
+        return
+      }
+      onClose?.()
+    }
+
+    const handleKey = (event) => {
+      if (event.key === 'Escape') {
+        onClose?.()
+      }
+    }
+
+    document.addEventListener('mousedown', handlePointer)
+    document.addEventListener('touchstart', handlePointer)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handlePointer)
+      document.removeEventListener('touchstart', handlePointer)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [anchorRef, isOpen, onClose])
+
+  useEffect(() => {
+    if (isOpen && menuRef.current) {
+      const firstButton = menuRef.current.querySelector('button')
+      firstButton?.focus()
+    }
+  }, [isOpen])
+
+  if (!isOpen) {
+    return null
+  }
+
+  return (
+    <div className="exercise-menu" role="menu" ref={menuRef} tabIndex={-1}>
+      <button type="button" className="exercise-menu__item" role="menuitem" onClick={() => { onRename?.(); onClose?.() }}>Byt namn</button>
+      <button type="button" className="exercise-menu__item" role="menuitem" onClick={() => { onCopy?.(); onClose?.() }}>Kopiera</button>
+      <button type="button" className="exercise-menu__item" role="menuitem" onClick={() => { onMove?.(); onClose?.() }}>Flytta till annat pass</button>
+      <button type="button" className="exercise-menu__item exercise-menu__item--danger" role="menuitem" onClick={() => { onDelete?.(); onClose?.() }}>Ta bort</button>
+    </div>
+  )
+}
+
+function ConfirmDialog({ message, onConfirm, onCancel }) {
+  return (
+    <div className="confirm-dialog" role="dialog" aria-modal="true">
+      <p className="confirm-dialog__message">{message}</p>
+      <div className="confirm-dialog__actions">
+        <button type="button" className="confirm-dialog__secondary" onClick={onCancel}>Avbryt</button>
+        <button type="button" className="confirm-dialog__primary" onClick={onConfirm}>Ta bort</button>
+      </div>
+    </div>
+  )
+}
+
+function MoveDialog({ workouts, currentWorkoutId, value, onChange, onConfirm, onCancel }) {
+  const options = workouts.filter((workout) => workout._id !== currentWorkoutId)
+  const hasOptions = options.length > 0
+
+  return (
+    <div className="move-dialog" role="dialog" aria-modal="true">
+      <label className="move-dialog__field">
+        <span>Välj pass</span>
+        <select value={value} onChange={(event) => onChange?.(event.target.value)} disabled={!hasOptions}>
+          <option value="" disabled>Välj pass</option>
+          {options.map((workout) => (
+            <option key={workout._id} value={workout._id}>{workout.name}</option>
+          ))}
+        </select>
+      </label>
+      {!hasOptions && (
+        <p className="move-dialog__hint">Skapa ett annat pass för att kunna flytta</p>
+      )}
+      <div className="move-dialog__actions">
+        <button type="button" className="move-dialog__secondary" onClick={onCancel}>Avbryt</button>
+        <button type="button" className="move-dialog__primary" onClick={onConfirm} disabled={!value || !hasOptions}>Flytta</button>
+      </div>
     </div>
   )
 }
