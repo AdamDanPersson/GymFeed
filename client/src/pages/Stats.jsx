@@ -103,6 +103,8 @@ function WorkoutBoard({ user }) {
   const [renameWorkoutValue, setRenameWorkoutValue] = useState('')
   const [renameWorkoutSavingId, setRenameWorkoutSavingId] = useState(null)
 
+  const [expandedExerciseId, setExpandedExerciseId] = useState(null)
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -659,6 +661,10 @@ function WorkoutBoard({ user }) {
     setConfirmDeleteWorkoutId(null)
   }, [])
 
+  const handleToggleExerciseExpand = useCallback((linkId) => {
+    setExpandedExerciseId((prev) => (prev === linkId ? null : linkId))
+  }, [])
+
   const formatWorkoutDate = useCallback((value) => {
     if (!value) {
       return ''
@@ -772,6 +778,8 @@ function WorkoutBoard({ user }) {
                       onMoveStart={() => handleStartMove(item.linkId)}
                       onMoveConfirm={handleMoveConfirm}
                       onMoveCancel={handleCancelMove}
+                      isExpanded={expandedExerciseId === item.linkId}
+                      onToggleExpand={() => handleToggleExerciseExpand(item.linkId)}
                     />
                   ))}
                 </SortableContext>
@@ -1038,7 +1046,9 @@ function SortableExerciseRow({
   onMoveTargetChange,
   onMoveStart,
   onMoveConfirm,
-  onMoveCancel
+  onMoveCancel,
+  isExpanded,
+  onToggleExpand
 }) {
   const {
     attributes,
@@ -1080,6 +1090,8 @@ function SortableExerciseRow({
       onMoveStart={onMoveStart}
       onMoveConfirm={onMoveConfirm}
       onMoveCancel={onMoveCancel}
+      isExpanded={isExpanded}
+      onToggleExpand={onToggleExpand}
       style={style}
       isDragging={isDragging}
       attributes={attributes}
@@ -1114,6 +1126,8 @@ function ExerciseRow({
   onMoveStart,
   onMoveConfirm,
   onMoveCancel,
+  isExpanded,
+  onToggleExpand,
   style,
   isDragging,
   attributes,
@@ -1123,15 +1137,18 @@ function ExerciseRow({
   const menuButtonRef = useRef(null)
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`exercise-row ${isDragging ? 'exercise-row--dragging' : ''} ${(isMenuOpen || showDeleteConfirm || isMoving) ? 'exercise-row--layer' : ''}`}
-    >
+    <>
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={`exercise-row ${isDragging ? 'exercise-row--dragging' : ''} ${(isMenuOpen || showDeleteConfirm || isMoving) ? 'exercise-row--layer' : ''}`}
+        onClick={onToggleExpand}
+      >
       <button
         type="button"
         className="exercise-row__grip"
         aria-label="Dra för att sortera"
+        onClick={(event) => event.stopPropagation()}
         {...attributes}
         {...listeners}
       >
@@ -1152,6 +1169,7 @@ function ExerciseRow({
         {isRenaming ? (
           <form
             className="exercise-rename"
+            onClick={(event) => event.stopPropagation()}
             onSubmit={(event) => {
               event.preventDefault()
               onRenameSave?.()
@@ -1171,7 +1189,9 @@ function ExerciseRow({
             </div>
           </form>
         ) : (
-          <div className="exercise-row__name">{item.name}</div>
+          <div className="exercise-row__name">
+            {item.name}
+          </div>
         )}
       </div>
 
@@ -1220,7 +1240,36 @@ function ExerciseRow({
           />
         )}
       </div>
-    </div>
+      </div>
+
+      {isExpanded && (
+        <div className="exercise-details">
+          <div className="exercise-details__form">
+            <input
+              type="number"
+              placeholder="Vikt (kg)"
+              className="exercise-details__input"
+            />
+            <input
+              type="number"
+              placeholder="Repetitioner"
+              className="exercise-details__input"
+            />
+            <label className="exercise-details__toggle">
+              <input type="checkbox" />
+              <span className="exercise-details__toggle-slider"></span>
+              <span className="exercise-details__toggle-label">Dropset</span>
+            </label>
+            <button
+              type="button"
+              className="exercise-details__add-btn"
+            >
+              Lägg till
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 

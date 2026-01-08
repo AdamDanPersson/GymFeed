@@ -419,6 +419,7 @@
   position: relative;
   overflow: visible;
   z-index: 0;
+  cursor: pointer;
 }
 
 .exercise-row--dragging {
@@ -700,6 +701,111 @@
 .exercise-row--add:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.exercise-details {
+  margin-top: 0.75rem;
+  padding: 1rem;
+  background: rgba(245, 231, 198, 0.08);
+  border-radius: 0.7rem;
+  color: #222222;
+  outline: 2px dotted #222222;
+}
+
+.exercise-details__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.exercise-details__input {
+  flex: 1 1 120px;
+  min-width: 100px;
+  padding: 0.5rem;
+  border: 1px solid #222222;
+  border-radius: 0.4rem;
+  background: rgba(245, 231, 198, 0.15);
+  color: #222222;
+  font-size: 0.9rem;
+}
+
+.exercise-details__input::placeholder {
+  color: rgba(34, 34, 34, 0.6);
+}
+
+.exercise-details__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.exercise-details__toggle input[type="checkbox"] {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.exercise-details__toggle-slider {
+  position: relative;
+  width: 2.5rem;
+  height: 1.4rem;
+  background: rgba(34, 34, 34, 0.3);
+  border-radius: 1rem;
+  transition: background 0.2s;
+  border: 1px solid #222222;
+}
+
+.exercise-details__toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 1rem;
+  height: 1rem;
+  left: 0.15rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #222222;
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.exercise-details__toggle input[type="checkbox"]:checked + .exercise-details__toggle-slider {
+  background: #4CAF50;
+  border-color: #4CAF50;
+}
+
+.exercise-details__toggle input[type="checkbox"]:checked + .exercise-details__toggle-slider::before {
+  transform: translateX(1.05rem) translateY(-50%);
+  background: #ffffff;
+}
+
+.exercise-details__toggle-label {
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.exercise-details__add-btn {
+  padding: 0.5rem 1rem;
+  background: #222222;
+  color: #f5e7c6;
+  border: none;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.exercise-details__add-btn:hover {
+  background: #333333;
+}
+
+.exercise-details p {
+  margin: 0;
+  font-weight: 600;
 }
 
 .exercise-add {
