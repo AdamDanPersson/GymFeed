@@ -192,4 +192,10 @@ export function deleteSet(setId) {
   })
 }
 
+export function getMonthlyVisits() {
+  return request('/stats/monthly-visits', {
+    requireUser: true
+  })
+}
+
 export { getStoredUser, getStoredUserId }

@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import {
   DndContext,
   closestCenter,
@@ -31,7 +31,8 @@ import {
   reorderWorkouts,
   renameWorkoutExercise,
   saveSetsBulk,
-  getExerciseSets
+  getExerciseSets,
+  getMonthlyVisits
 } from '../lib/apiClient'
 import './Stats.css'
 
@@ -50,10 +51,115 @@ function StatsPage() {
   return (
     <main className="stats-page" aria-labelledby="stats-heading">
       <StatsCard user={user} onLogout={handleLogout} />
+      <MonthlyVisitsChart user={user} />
       <WorkoutBoard user={user} />
     </main>
   )
 }
+
+// Monthly Gym Visits Chart Component
+const MonthlyVisitsChart = memo(function MonthlyVisitsChart({ user }) {
+  const [monthlyData, setMonthlyData] = useState([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!user) {
+      setMonthlyData([])
+      return
+    }
+
+    let ignore = false
+    setIsLoading(true)
+    setError('')
+
+    getMonthlyVisits()
+      .then((data) => {
+        if (!ignore) {
+          setMonthlyData(data)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          setError(err.message)
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [user])
+
+  const totalVisits = useMemo(() => {
+    return monthlyData.reduce((sum, month) => sum + month.visits, 0)
+  }, [monthlyData])
+
+  if (!user) {
+    return null
+  }
+
+  return (
+    <div className="monthly-visits-card">
+      <div className="monthly-visits-header">
+        <h2 className="monthly-visits-title">Gymbesök senaste 12 månaderna</h2>
+        <span className="monthly-visits-total">{totalVisits} besök totalt</span>
+      </div>
+      
+      {isLoading ? (
+        <p className="monthly-visits-loading">Laddar statistik...</p>
+      ) : error ? (
+        <p className="monthly-visits-error">{error}</p>
+      ) : monthlyData.length > 0 ? (
+        <div className="monthly-visits-chart">
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis 
+                dataKey="label" 
+                tick={{ fontSize: 11 }}
+                tickLine={false}
+              />
+              <YAxis 
+                allowDecimals={false}
+                tick={{ fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <Tooltip 
+                cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                content={({ active, payload }) => {
+                  if (!active || !payload || payload.length === 0) return null
+                  const data = payload[0]?.payload
+                  return (
+                    <div className="monthly-visits-tooltip">
+                      <p className="monthly-visits-tooltip-label">{data.label}</p>
+                      <p className="monthly-visits-tooltip-value">
+                        {data.visits} {data.visits === 1 ? 'besök' : 'besök'}
+                      </p>
+                    </div>
+                  )
+                }}
+              />
+              <Bar 
+                dataKey="visits" 
+                fill="#6366f1" 
+                radius={[4, 4, 0, 0]}
+                maxBarSize={50}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <p className="monthly-visits-empty">Ingen träningsdata ännu</p>
+      )}
+    </div>
+  )
+})
 
 const StatsCard = memo(function StatsCard({ user, onLogout }) {
   return (
@@ -1400,24 +1506,120 @@ function ExerciseRow({
 }) {
   const menuButtonRef = useRef(null)
 
-  // Process history data for chart
+  // Process history data for chart - supports multiple metrics
   const chartData = useMemo(() => {
     if (!exerciseHistory || !exerciseHistory.groups || exerciseHistory.groups.length === 0) {
       return []
     }
 
-    return exerciseHistory.groups.map((group) => {
-      const maxWeight = Math.max(...group.sets.map(s => parseFloat(s.weight) || 0))
-      const date = new Date(group.date).toLocaleDateString('sv-SE', { 
-        month: 'short', 
-        day: 'numeric' 
+    // Sort groups chronologically (oldest first)
+    const sortedGroups = [...exerciseHistory.groups].sort((a, b) => 
+      new Date(a.date) - new Date(b.date)
+    )
+
+    // Helper function to create unique date labels when multiple sessions exist on same day
+    const createDateLabels = (groups) => {
+      const dateCounts = {}
+      const dateIndices = {}
+      
+      // First pass: count occurrences of each date
+      groups.forEach(group => {
+        const dateKey = new Date(group.date).toLocaleDateString('sv-SE', { 
+          month: 'short', 
+          day: 'numeric' 
+        })
+        dateCounts[dateKey] = (dateCounts[dateKey] || 0) + 1
       })
-      return {
-        date,
-        maxWeight
-      }
-    }).reverse() // Reverse to show oldest first
-  }, [exerciseHistory])
+      
+      // Second pass: assign labels with session numbers if duplicates exist
+      return groups.map(group => {
+        const dateKey = new Date(group.date).toLocaleDateString('sv-SE', { 
+          month: 'short', 
+          day: 'numeric' 
+        })
+        
+        if (dateCounts[dateKey] > 1) {
+          dateIndices[dateKey] = (dateIndices[dateKey] || 0) + 1
+          return `${dateKey} #${dateIndices[dateKey]}`
+        }
+        return dateKey
+      })
+    }
+    
+    const dateLabels = createDateLabels(sortedGroups)
+
+    // "allSets" - Show every individual set grouped by date, with dropsets in red
+    if (chartMetric === 'allSets') {
+      // Find max number of sets in any group
+      const maxSets = Math.max(...sortedGroups.map(g => g.sets.length))
+      
+      // Create grouped data: each date has set1, set2, set3, etc.
+      const groupedData = sortedGroups.map((group, groupIndex) => {
+        const date = dateLabels[groupIndex]
+        
+        // Sort sets within group by createdAt (oldest first)
+        const sortedSets = [...group.sets].sort((a, b) => 
+          new Date(a.createdAt || 0) - new Date(b.createdAt || 0)
+        )
+        
+        // Create object with date and set1, set2, etc.
+        const row = { date, _maxSets: maxSets }
+        sortedSets.forEach((set, index) => {
+          const setNum = index + 1
+          row[`set${setNum}`] = parseFloat(set.weight) || 0
+          row[`set${setNum}_reps`] = parseInt(set.reps) || 0
+          row[`set${setNum}_isDropSet`] = set.isDropSet || false
+        })
+        return row
+      })
+      
+      // Attach maxSets to the array for rendering
+      groupedData._maxSets = maxSets
+      return groupedData
+    }
+
+    // "totalVolume" - Sum of (weight × reps) per session
+    if (chartMetric === 'totalVolume') {
+      return sortedGroups.map((group, groupIndex) => {
+        const volume = group.sets.reduce((sum, set) => {
+          const w = parseFloat(set.weight) || 0
+          const r = parseInt(set.reps) || 0
+          return sum + (w * r)
+        }, 0)
+        const date = dateLabels[groupIndex]
+        return { date, value: Math.round(volume), label: 'Total volym (kg)' }
+      })
+    }
+
+    // "e1rm" - Estimated 1 Rep Max using Epley formula: weight × (1 + reps/30)
+    if (chartMetric === 'e1rm') {
+      return sortedGroups.map((group, groupIndex) => {
+        const maxE1rm = Math.max(...group.sets.map(set => {
+          const w = parseFloat(set.weight) || 0
+          const r = parseInt(set.reps) || 0
+          if (r === 0) return 0
+          return w * (1 + r / 30)
+        }))
+        const date = dateLabels[groupIndex]
+        return { date, value: Math.round(maxE1rm * 10) / 10, label: 'E1RM (kg)' }
+      })
+    }
+
+    // "setCount" - Number of sets per session
+    if (chartMetric === 'setCount') {
+      return sortedGroups.map((group, groupIndex) => {
+        const date = dateLabels[groupIndex]
+        return { date, value: group.sets.length, label: 'Antal set' }
+      })
+    }
+
+    // Default: "maxWeight" - Top set (highest weight) per session
+    return sortedGroups.map((group, groupIndex) => {
+      const maxWeight = Math.max(...group.sets.map(s => parseFloat(s.weight) || 0))
+      const date = dateLabels[groupIndex]
+      return { date, value: maxWeight, label: 'Max vikt (kg)' }
+    })
+  }, [exerciseHistory, chartMetric])
 
   return (
     <>
@@ -1533,7 +1735,12 @@ function ExerciseRow({
                 <p className="exercise-history__loading">Laddar...</p>
               ) : exerciseHistory && exerciseHistory.groups && exerciseHistory.groups.length > 0 ? (
                 <>
-                  <h4 className="exercise-history__title">Senaste setten</h4>
+                  <h4 className="exercise-history__title">
+                    Senaste setten
+                    <span style={{ fontWeight: 'normal', fontSize: '12px', marginLeft: '6px', color: '#666' }}>
+                      ({new Date(exerciseHistory.groups[0].date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })})
+                    </span>
+                  </h4>
                   <div className="exercise-history__sets">
                     {exerciseHistory.groups[0].sets.map((set) => (
                       <div key={set._id} className="exercise-history__set">
@@ -1575,7 +1782,11 @@ function ExerciseRow({
                     onChange={(e) => onChartMetricChange(e.target.value)}
                     className="exercise-history__chart-select"
                   >
-                    <option value="maxWeight">Max vikt</option>
+                    <option value="maxWeight">Max vikt (top set)</option>
+                    <option value="totalVolume">Total volym</option>
+                    <option value="e1rm">Estimerat 1RM</option>
+                    <option value="setCount">Antal set</option>
+                    {chartType === 'bar' && <option value="allSets">Alla set (detaljvy)</option>}
                   </select>
                 </div>
               </div>
@@ -1585,18 +1796,104 @@ function ExerciseRow({
                   {chartType === 'bar' ? (
                     <BarChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
+                      <XAxis 
+                        dataKey="date"
+                        tick={{ fontSize: 11 }}
+                      />
                       <YAxis />
-                      <Tooltip />
-                      <Bar dataKey="maxWeight" fill="#8884d8" />
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(0,0,0,0.1)' }}
+                        content={({ active, payload, label }) => {
+                          // Null-checks för att undvika krasch
+                          if (!active || !payload || payload.length === 0) return null
+                          
+                          // Custom tooltip för allSets - visar info om ALLA set i gruppen
+                          if (chartMetric === 'allSets') {
+                            // Filtrera bort tomma/undefined värden
+                            const validPayloads = payload.filter(p => p.value !== undefined && p.value !== null)
+                            if (validPayloads.length === 0) return null
+                            
+                            const data = validPayloads[0]?.payload
+                            
+                            return (
+                              <div style={{ background: 'white', padding: '8px 12px', border: '1px solid #ccc', borderRadius: '4px', minWidth: '120px' }}>
+                                <p style={{ margin: 0, fontWeight: 'bold', borderBottom: '1px solid #eee', paddingBottom: '4px' }}>{label || data?.date || ''}</p>
+                                {validPayloads.map((entry, idx) => {
+                                  const setKey = entry.dataKey // e.g. "set1", "set2"
+                                  const setNum = setKey?.replace('set', '') || ''
+                                  const weight = entry.value || 0
+                                  const reps = entry.payload?.[`${setKey}_reps`] || 0
+                                  const isDropSet = entry.payload?.[`${setKey}_isDropSet`] || false
+                                  
+                                  return (
+                                    <div key={idx} style={{ marginTop: '4px', padding: '2px 0', borderBottom: idx < validPayloads.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                                      <p style={{ margin: 0, color: isDropSet ? '#e53935' : '#333' }}>
+                                        {`Set ${setNum}: ${weight} kg × ${reps}`}
+                                        {isDropSet && <span style={{ marginLeft: '6px', fontWeight: 'bold' }}>DROP</span>}
+                                      </p>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )
+                          }
+                          
+                          // Standard tooltip för andra metrics
+                          const data = payload[0]?.payload
+                          if (!data) return null
+                          
+                          return (
+                            <div style={{ background: 'white', padding: '8px 12px', border: '1px solid #ccc', borderRadius: '4px' }}>
+                              <p style={{ margin: 0, fontWeight: 'bold' }}>{data.date || ''}</p>
+                              <p style={{ margin: '4px 0 0 0' }}>{`${data.label || 'Värde'}: ${data.value ?? 0}`}</p>
+                            </div>
+                          )
+                        }}
+                      />
+                      {chartMetric === 'allSets' ? (
+                        // Render one Bar per set position (set1, set2, set3, etc.)
+                        Array.from({ length: chartData._maxSets || 0 }, (_, i) => {
+                          const setNum = i + 1
+                          const dataKey = `set${setNum}`
+                          return (
+                            <Bar key={dataKey} dataKey={dataKey} name={`Set ${setNum}`}>
+                              {chartData.map((entry, index) => {
+                                const isDropSet = entry[`${dataKey}_isDropSet`] || false
+                                return (
+                                  <Cell 
+                                    key={`cell-${index}`} 
+                                    fill={isDropSet ? '#e53935' : '#8884d8'} 
+                                  />
+                                )
+                              })}
+                            </Bar>
+                          )
+                        })
+                      ) : (
+                        <Bar dataKey="value" fill="#8884d8" />
+                      )}
                     </BarChart>
                   ) : (
                     <LineChart data={chartData}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="date" />
                       <YAxis />
-                      <Tooltip />
-                      <Line type="monotone" dataKey="maxWeight" stroke="#8884d8" strokeWidth={2} />
+                      <Tooltip 
+                        content={({ active, payload }) => {
+                          // Null-checks för att undvika krasch
+                          if (!active || !payload || payload.length === 0) return null
+                          const data = payload[0]?.payload
+                          if (!data) return null
+                          
+                          return (
+                            <div style={{ background: 'white', padding: '8px 12px', border: '1px solid #ccc', borderRadius: '4px' }}>
+                              <p style={{ margin: 0, fontWeight: 'bold' }}>{data.date || ''}</p>
+                              <p style={{ margin: '4px 0 0 0' }}>{`${data.label || 'Värde'}: ${data.value ?? 0}`}</p>
+                            </div>
+                          )
+                        }}
+                      />
+                      <Line type="monotone" dataKey="value" stroke="#8884d8" strokeWidth={2} dot={{ r: 4 }} />
                     </LineChart>
                   )}
                 </ResponsiveContainer>
