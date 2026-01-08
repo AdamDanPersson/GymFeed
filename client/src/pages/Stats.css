@@ -164,6 +164,11 @@
   border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+.pass-menu__board--post {
+  background: transparent;
+  border: 2px dotted rgba(245, 231, 198, 0.4);
+}
+
 .pass-menu__message {
   margin-top: 0.75rem;
   color: rgba(245, 231, 198, 0.9);

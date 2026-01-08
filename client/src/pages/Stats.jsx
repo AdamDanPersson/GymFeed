@@ -53,6 +53,7 @@ function StatsPage() {
       <StatsCard user={user} onLogout={handleLogout} />
       <MonthlyVisitsChart user={user} />
       <WorkoutBoard user={user} />
+      <PostBoard user={user} />
     </main>
   )
 }
@@ -2192,6 +2193,132 @@ function MoveDialog({ workouts, currentWorkoutId, value, onChange, onConfirm, on
         <button type="button" className="move-dialog__primary" onClick={onConfirm} disabled={!value || !hasOptions}>Flytta</button>
       </div>
     </div>
+  )
+}
+
+// PostBoard Component - UI placeholder for posts
+function PostBoard({ user }) {
+  const [posts, setPosts] = useState([])
+  const [isCreatingPost, setIsCreatingPost] = useState(false)
+
+  // Placeholder data for UI demonstration
+  const demoPost = {
+    _id: 'demo-1',
+    title: 'Min första post',
+    createdAt: new Date().toISOString()
+  }
+
+  const formatPostDate = useCallback((value) => {
+    if (!value) return ''
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return ''
+    return parsed.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' })
+  }, [])
+
+  if (!user) {
+    return (
+      <section className="pass-menu" aria-label="Post">
+        <h2>Post</h2>
+        <p className="pass-menu__message">Du måste logga in för att skapa poster.</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="pass-menu" aria-label="Post">
+      <h2>Post</h2>
+      <div className="pass-menu__board pass-menu__board--post">
+        {posts.length === 0 && !isCreatingPost && (
+          <p className="pass-menu__empty">Inga poster ännu</p>
+        )}
+
+        {/* Post tiles */}
+        {posts.map((post) => (
+          <div
+            key={post._id}
+            className="pass-tile pass-tile--saved"
+            role="button"
+            tabIndex={0}
+          >
+            <div className="pass-tile__content">
+              <h3>{post.title}</h3>
+              <time dateTime={post.createdAt}>
+                {formatPostDate(post.createdAt)}
+              </time>
+            </div>
+            <div className="pass-tile__actions">
+              <button
+                type="button"
+                className="pass-tile__menu-btn"
+                aria-label="Öppna meny"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <span aria-hidden="true">⋯</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              className="pass-tile__grip"
+              aria-label="Dra för att sortera"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <circle cx="4" cy="3" r="1.5" />
+                <circle cx="8" cy="3" r="1.5" />
+                <circle cx="12" cy="3" r="1.5" />
+                <circle cx="4" cy="8" r="1.5" />
+                <circle cx="8" cy="8" r="1.5" />
+                <circle cx="12" cy="8" r="1.5" />
+                <circle cx="4" cy="13" r="1.5" />
+                <circle cx="8" cy="13" r="1.5" />
+                <circle cx="12" cy="13" r="1.5" />
+              </svg>
+            </button>
+          </div>
+        ))}
+
+        {/* Add post button - same style as pass */}
+        <button
+          type="button"
+          className="pass-tile pass-tile--add"
+          aria-label="Lägg till ny post"
+          onClick={() => setIsCreatingPost(true)}
+          disabled={isCreatingPost}
+        >
+          <span aria-hidden="true">+</span>
+        </button>
+
+        {/* Create post form */}
+        {isCreatingPost && (
+          <form
+            className="pass-tile pass-tile--form"
+            onSubmit={(e) => {
+              e.preventDefault()
+              // TODO: Handle post creation
+              setIsCreatingPost(false)
+            }}
+          >
+            <input
+              type="text"
+              className="pass-form__input"
+              placeholder="Post-titel"
+              autoFocus
+            />
+            <div className="pass-form__actions">
+              <button
+                type="button"
+                className="pass-form__cancel"
+                onClick={() => setIsCreatingPost(false)}
+              >
+                Avbryt
+              </button>
+              <button type="submit" className="pass-form__submit">
+                Skapa
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+    </section>
   )
 }
 
