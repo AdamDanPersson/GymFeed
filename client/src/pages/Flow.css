@@ -58,7 +58,29 @@
 .flow-feed__load-more {
   padding: 2rem;
   text-align: center;
-  color: #faf3e1;
+}
+
+.flow-feed__load-more-btn {
+  background: #faf3e1;
+  color: #1b150f;
+  border: none;
+  border-radius: 2rem;
+  padding: 1rem 2.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.flow-feed__load-more-btn:hover:not(:disabled) {
+  background: #fff;
+  transform: translateY(-2px);
+}
+
+.flow-feed__load-more-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 .feed-card {
@@ -69,6 +91,18 @@
   flex-direction: column;
   gap: 1rem;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+  animation: fadeSlideIn 0.4s ease-out forwards;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .feed-card__header {
@@ -176,6 +210,50 @@
   border-top: 1px solid rgba(0, 0, 0, 0.08);
 }
 
+.footer-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.footer-action {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 2rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: rgba(27, 21, 15, 0.7);
+  transition: all 0.15s ease;
+}
+
+.footer-action:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.footer-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.footer-action--liked {
+  color: #e11d48;
+  border-color: rgba(225, 29, 72, 0.3);
+  background: rgba(225, 29, 72, 0.08);
+}
+
+.footer-action--liked:hover:not(:disabled) {
+  background: rgba(225, 29, 72, 0.12);
+}
+
+.footer-action--active {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.2);
+}
+
 .footer-stats {
   display: flex;
   gap: 1rem;
@@ -226,4 +304,124 @@
   .tag-chip {
     margin-left: auto;
   }
+}
+
+/* Comments Section */
+.feed-card__comments {
+  padding-top: 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  animation: fadeSlideIn 0.3s ease-out forwards;
+}
+
+.comments__loading,
+.comments__empty {
+  text-align: center;
+  padding: 1rem;
+  color: rgba(27, 21, 15, 0.5);
+  font-size: 0.9rem;
+}
+
+.comments__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.comment {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.comment__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.comment__author {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #1b150f;
+}
+
+.comment__date {
+  font-size: 0.75rem;
+  color: rgba(27, 21, 15, 0.5);
+}
+
+.comment__delete {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: rgba(27, 21, 15, 0.4);
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 0 0.3rem;
+  line-height: 1;
+  border-radius: 0.25rem;
+  transition: all 0.15s ease;
+}
+
+.comment__delete:hover {
+  background: rgba(220, 38, 38, 0.1);
+  color: #dc2626;
+}
+
+.comment__content {
+  margin: 0;
+  font-size: 0.9rem;
+  color: rgba(27, 21, 15, 0.85);
+  line-height: 1.4;
+}
+
+.comments__form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.comments__input {
+  flex: 1;
+  padding: 0.65rem 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 2rem;
+  font-size: 0.9rem;
+  background: rgba(0, 0, 0, 0.02);
+  color: #1b150f;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.comments__input:focus {
+  border-color: #ff6d1f;
+}
+
+.comments__input::placeholder {
+  color: rgba(27, 21, 15, 0.4);
+}
+
+.comments__submit {
+  padding: 0.65rem 1.25rem;
+  background: #ff6d1f;
+  color: #fff;
+  border: none;
+  border-radius: 2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.comments__submit:hover:not(:disabled) {
+  background: #e55a0f;
+}
+
+.comments__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

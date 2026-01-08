@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { fetchPosts, deletePost, getExerciseSets, getStoredUser, getStoredUserId } from '../lib/apiClient'
+import { fetchPosts, deletePost, getExerciseSets, getStoredUser, getStoredUserId, likePost, unlikePost, checkPostLike, fetchComments, addComment, deleteComment } from '../lib/apiClient'
 import './Flow.css'
 
 // Metric labels for display
@@ -85,12 +85,35 @@ function calculateChartData(groups, metric, dateRange, dateMode, specificDates) 
 }
 
 // Graph Post Card Component
-function GraphPostCard({ post, currentUserId, onDelete }) {
+function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
   const [chartData, setChartData] = useState([])
   const [isLoadingChart, setIsLoadingChart] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Likes state
+  const [isLiked, setIsLiked] = useState(false)
+  const [likeCount, setLikeCount] = useState(post.likeCount || 0)
+  const [isLiking, setIsLiking] = useState(false)
+  
+  // Comments state
+  const [comments, setComments] = useState([])
+  const [showComments, setShowComments] = useState(false)
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
+  const [commentText, setCommentText] = useState('')
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [commentCount, setCommentCount] = useState(post.commentCount || 0)
 
   const isOwner = currentUserId && post.userId === currentUserId
+  const isLoggedIn = !!currentUserId
+
+  // Check if user has liked this post
+  useEffect(() => {
+    if (!isLoggedIn) return
+    
+    checkPostLike(post._id)
+      .then((data) => setIsLiked(data.liked))
+      .catch(() => {}) // Silently fail
+  }, [post._id, isLoggedIn])
 
   // Fetch exercise data for chart
   useEffect(() => {
@@ -134,6 +157,77 @@ function GraphPostCard({ post, currentUserId, onDelete }) {
       setIsDeleting(false)
     }
   }, [post._id, onDelete])
+
+  // Handle like/unlike
+  const handleLike = useCallback(async () => {
+    if (!isLoggedIn || isLiking) return
+
+    setIsLiking(true)
+    try {
+      if (isLiked) {
+        const result = await unlikePost(post._id)
+        setIsLiked(false)
+        setLikeCount(result.likeCount)
+      } else {
+        const result = await likePost(post._id)
+        setIsLiked(true)
+        setLikeCount(result.likeCount)
+      }
+    } catch (err) {
+      console.error('Failed to toggle like:', err)
+    } finally {
+      setIsLiking(false)
+    }
+  }, [post._id, isLiked, isLiking, isLoggedIn])
+
+  // Toggle comments section
+  const handleToggleComments = useCallback(async () => {
+    if (!showComments) {
+      setShowComments(true)
+      setIsLoadingComments(true)
+      try {
+        const data = await fetchComments(post._id)
+        setComments(data.comments || [])
+      } catch (err) {
+        console.error('Failed to fetch comments:', err)
+      } finally {
+        setIsLoadingComments(false)
+      }
+    } else {
+      setShowComments(false)
+    }
+  }, [post._id, showComments])
+
+  // Submit comment
+  const handleSubmitComment = useCallback(async (e) => {
+    e.preventDefault()
+    if (!commentText.trim() || isSubmittingComment || !isLoggedIn) return
+
+    setIsSubmittingComment(true)
+    try {
+      const newComment = await addComment(post._id, commentText.trim())
+      setComments(prev => [...prev, newComment])
+      setCommentCount(prev => prev + 1)
+      setCommentText('')
+    } catch (err) {
+      console.error('Failed to add comment:', err)
+      alert('Kunde inte lägga till kommentar: ' + err.message)
+    } finally {
+      setIsSubmittingComment(false)
+    }
+  }, [post._id, commentText, isSubmittingComment, isLoggedIn])
+
+  // Delete comment
+  const handleDeleteComment = useCallback(async (commentId) => {
+    try {
+      await deleteComment(post._id, commentId)
+      setComments(prev => prev.filter(c => c._id !== commentId))
+      setCommentCount(prev => Math.max(0, prev - 1))
+    } catch (err) {
+      console.error('Failed to delete comment:', err)
+      alert('Kunde inte ta bort kommentar: ' + err.message)
+    }
+  }, [post._id])
 
   const formattedDate = useMemo(() => {
     const date = new Date(post.createdAt)
@@ -217,19 +311,30 @@ function GraphPostCard({ post, currentUserId, onDelete }) {
       )}
 
       <div className="feed-card__footer">
-        <div className="footer-stats">
-          <span className="footer-stat">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <div className="footer-actions">
+          <button
+            type="button"
+            className={`footer-action ${isLiked ? 'footer-action--liked' : ''}`}
+            onClick={handleLike}
+            disabled={!isLoggedIn || isLiking}
+            aria-label={isLiked ? 'Ta bort gilla' : 'Gilla'}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill={isLiked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
             </svg>
-            {post.likeCount}
-          </span>
-          <span className="footer-stat">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <span>{likeCount}</span>
+          </button>
+          <button
+            type="button"
+            className={`footer-action ${showComments ? 'footer-action--active' : ''}`}
+            onClick={handleToggleComments}
+            aria-label="Visa kommentarer"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
             </svg>
-            {post.commentCount}
-          </span>
+            <span>{commentCount}</span>
+          </button>
         </div>
 
         {isOwner && (
@@ -249,6 +354,70 @@ function GraphPostCard({ post, currentUserId, onDelete }) {
           </button>
         )}
       </div>
+
+      {/* Comments Section */}
+      {showComments && (
+        <div className="feed-card__comments">
+          {isLoadingComments ? (
+            <div className="comments__loading">Laddar kommentarer...</div>
+          ) : (
+            <>
+              {comments.length === 0 ? (
+                <p className="comments__empty">Inga kommentarer än</p>
+              ) : (
+                <ul className="comments__list">
+                  {comments.map((comment) => (
+                    <li key={comment._id} className="comment">
+                      <div className="comment__header">
+                        <span className="comment__author">{comment.authorName}</span>
+                        <span className="comment__date">
+                          {new Date(comment.createdAt).toLocaleDateString('sv-SE', { 
+                            month: 'short', 
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                        {currentUserId === comment.userId && (
+                          <button
+                            type="button"
+                            className="comment__delete"
+                            onClick={() => handleDeleteComment(comment._id)}
+                            aria-label="Ta bort kommentar"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                      <p className="comment__content">{comment.content}</p>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {isLoggedIn && (
+                <form className="comments__form" onSubmit={handleSubmitComment}>
+                  <input
+                    type="text"
+                    className="comments__input"
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    placeholder="Skriv en kommentar..."
+                    maxLength={500}
+                  />
+                  <button
+                    type="submit"
+                    className="comments__submit"
+                    disabled={!commentText.trim() || isSubmittingComment}
+                  >
+                    {isSubmittingComment ? '...' : 'Skicka'}
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </article>
   )
 }
@@ -259,7 +428,6 @@ function FlowPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [nextCursor, setNextCursor] = useState(null)
   const [error, setError] = useState('')
-  const loadMoreRef = useRef(null)
 
   const currentUserId = useMemo(() => getStoredUserId(), [])
 
@@ -310,24 +478,6 @@ function FlowPage() {
     }
   }, [nextCursor, isLoadingMore])
 
-  // Infinite scroll with Intersection Observer
-  useEffect(() => {
-    if (!loadMoreRef.current || !nextCursor) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadMore()
-        }
-      },
-      { threshold: 0.1 }
-    )
-
-    observer.observe(loadMoreRef.current)
-
-    return () => observer.disconnect()
-  }, [nextCursor, loadMore])
-
   const handleDeletePost = useCallback((postId) => {
     setPosts(prev => prev.filter(p => p._id !== postId))
   }, [])
@@ -354,10 +504,16 @@ function FlowPage() {
               />
             ))}
             
-            {/* Load more trigger */}
+            {/* Load more button */}
             {nextCursor && (
-              <div ref={loadMoreRef} className="flow-feed__load-more">
-                {isLoadingMore && <span>Laddar fler...</span>}
+              <div className="flow-feed__load-more">
+                <button 
+                  className="flow-feed__load-more-btn"
+                  onClick={loadMore}
+                  disabled={isLoadingMore}
+                >
+                  {isLoadingMore ? 'Laddar...' : 'Ladda fler inlägg'}
+                </button>
               </div>
             )}
           </>

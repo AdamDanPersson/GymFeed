@@ -235,4 +235,47 @@ export function deletePost(postId) {
   })
 }
 
+// ==================== POST LIKES ====================
+
+export function likePost(postId) {
+  return request(`/posts/${postId}/like`, {
+    method: 'POST',
+    requireUser: true
+  })
+}
+
+export function unlikePost(postId) {
+  return request(`/posts/${postId}/like`, {
+    method: 'DELETE',
+    requireUser: true
+  })
+}
+
+export function checkPostLike(postId) {
+  return request(`/posts/${postId}/like`, {
+    requireUser: true
+  })
+}
+
+// ==================== POST COMMENTS ====================
+
+export function fetchComments(postId) {
+  return request(`/posts/${postId}/comments`)
+}
+
+export function addComment(postId, content) {
+  return request(`/posts/${postId}/comments`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+    requireUser: true
+  })
+}
+
+export function deleteComment(postId, commentId) {
+  return request(`/posts/${postId}/comments/${commentId}`, {
+    method: 'DELETE',
+    requireUser: true
+  })
+}
+
 export { getStoredUser, getStoredUserId }

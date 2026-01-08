@@ -23,6 +23,8 @@ let exercisesCollection
 let workoutExercisesCollection
 let setsCollection
 let postsCollection
+let postLikesCollection
+let postCommentsCollection
 
 // Valid metrics and chart types for posts
 const VALID_METRICS = ['maxWeight', 'totalVolume', 'e1rm', 'setCount', 'allSets']
@@ -1280,10 +1282,245 @@ app.delete('/posts/:postId', requireUser, async (req, res) => {
       return res.status(404).json({ message: 'Post not found' })
     }
 
+    // Also delete likes and comments for this post
+    await postLikesCollection.deleteMany({ postId: new ObjectId(postId) })
+    await postCommentsCollection.deleteMany({ postId: new ObjectId(postId) })
+
     return res.status(204).end()
   } catch (error) {
     console.error('Delete post error', error)
     return res.status(500).json({ message: 'Failed to delete post' })
+  }
+})
+
+// ==================== POST LIKES ====================
+
+// POST /posts/:postId/like - Like a post
+app.post('/posts/:postId/like', requireUser, async (req, res) => {
+  const { postId } = req.params
+
+  if (!ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid post ID' })
+  }
+
+  try {
+    // Check if post exists
+    const post = await postsCollection.findOne({ _id: new ObjectId(postId) })
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' })
+    }
+
+    // Check if already liked
+    const existingLike = await postLikesCollection.findOne({
+      postId: new ObjectId(postId),
+      userId: req.userId
+    })
+
+    if (existingLike) {
+      return res.status(400).json({ message: 'Already liked' })
+    }
+
+    // Create like
+    await postLikesCollection.insertOne({
+      postId: new ObjectId(postId),
+      userId: req.userId,
+      createdAt: new Date()
+    })
+
+    // Increment likeCount on post
+    await postsCollection.updateOne(
+      { _id: new ObjectId(postId) },
+      { $inc: { likeCount: 1 } }
+    )
+
+    const newCount = (post.likeCount || 0) + 1
+    return res.status(201).json({ liked: true, likeCount: newCount })
+  } catch (error) {
+    console.error('Like post error', error)
+    return res.status(500).json({ message: 'Failed to like post' })
+  }
+})
+
+// DELETE /posts/:postId/like - Unlike a post
+app.delete('/posts/:postId/like', requireUser, async (req, res) => {
+  const { postId } = req.params
+
+  if (!ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid post ID' })
+  }
+
+  try {
+    const result = await postLikesCollection.deleteOne({
+      postId: new ObjectId(postId),
+      userId: req.userId
+    })
+
+    if (result.deletedCount === 0) {
+      return res.status(400).json({ message: 'Not liked yet' })
+    }
+
+    // Decrement likeCount on post
+    await postsCollection.updateOne(
+      { _id: new ObjectId(postId) },
+      { $inc: { likeCount: -1 } }
+    )
+
+    const post = await postsCollection.findOne({ _id: new ObjectId(postId) })
+    const newCount = post?.likeCount || 0
+
+    return res.json({ liked: false, likeCount: newCount })
+  } catch (error) {
+    console.error('Unlike post error', error)
+    return res.status(500).json({ message: 'Failed to unlike post' })
+  }
+})
+
+// GET /posts/:postId/like - Check if user has liked a post
+app.get('/posts/:postId/like', requireUser, async (req, res) => {
+  const { postId } = req.params
+
+  if (!ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid post ID' })
+  }
+
+  try {
+    const like = await postLikesCollection.findOne({
+      postId: new ObjectId(postId),
+      userId: req.userId
+    })
+
+    return res.json({ liked: !!like })
+  } catch (error) {
+    console.error('Check like error', error)
+    return res.status(500).json({ message: 'Failed to check like status' })
+  }
+})
+
+// ==================== POST COMMENTS ====================
+
+// GET /posts/:postId/comments - Get comments for a post
+app.get('/posts/:postId/comments', async (req, res) => {
+  const { postId } = req.params
+
+  if (!ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid post ID' })
+  }
+
+  try {
+    const comments = await postCommentsCollection
+      .find({ postId: new ObjectId(postId) })
+      .sort({ createdAt: 1 })
+      .toArray()
+
+    return res.json({
+      comments: comments.map(c => ({
+        _id: c._id.toString(),
+        postId: c.postId.toString(),
+        userId: c.userId.toString(),
+        authorName: c.authorName,
+        content: c.content,
+        createdAt: c.createdAt
+      }))
+    })
+  } catch (error) {
+    console.error('Get comments error', error)
+    return res.status(500).json({ message: 'Failed to fetch comments' })
+  }
+})
+
+// POST /posts/:postId/comments - Add a comment
+app.post('/posts/:postId/comments', requireUser, async (req, res) => {
+  const { postId } = req.params
+  const { content } = req.body
+
+  if (!ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid post ID' })
+  }
+
+  const trimmedContent = typeof content === 'string' ? content.trim() : ''
+  if (!trimmedContent) {
+    return res.status(400).json({ message: 'Comment content is required' })
+  }
+
+  if (trimmedContent.length > 500) {
+    return res.status(400).json({ message: 'Comment must be 500 characters or less' })
+  }
+
+  try {
+    // Check if post exists
+    const post = await postsCollection.findOne({ _id: new ObjectId(postId) })
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' })
+    }
+
+    // Get user info for author name
+    const user = await usersCollection.findOne({ _id: req.userId })
+    const authorName = user?.fullName || user?.firstName || 'Okänd'
+
+    const commentDoc = {
+      postId: new ObjectId(postId),
+      userId: req.userId,
+      authorName,
+      content: trimmedContent,
+      createdAt: new Date()
+    }
+
+    const result = await postCommentsCollection.insertOne(commentDoc)
+
+    // Increment commentCount on post
+    await postsCollection.updateOne(
+      { _id: new ObjectId(postId) },
+      { $inc: { commentCount: 1 } }
+    )
+
+    return res.status(201).json({
+      _id: result.insertedId.toString(),
+      postId: commentDoc.postId.toString(),
+      userId: commentDoc.userId.toString(),
+      authorName: commentDoc.authorName,
+      content: commentDoc.content,
+      createdAt: commentDoc.createdAt
+    })
+  } catch (error) {
+    console.error('Add comment error', error)
+    return res.status(500).json({ message: 'Failed to add comment' })
+  }
+})
+
+// DELETE /posts/:postId/comments/:commentId - Delete own comment
+app.delete('/posts/:postId/comments/:commentId', requireUser, async (req, res) => {
+  const { postId, commentId } = req.params
+
+  if (!ObjectId.isValid(postId) || !ObjectId.isValid(commentId)) {
+    return res.status(400).json({ message: 'Invalid ID' })
+  }
+
+  try {
+    const result = await postCommentsCollection.deleteOne({
+      _id: new ObjectId(commentId),
+      postId: new ObjectId(postId),
+      userId: req.userId
+    })
+
+    if (result.deletedCount === 0) {
+      // Check if comment exists but belongs to someone else
+      const comment = await postCommentsCollection.findOne({ _id: new ObjectId(commentId) })
+      if (comment) {
+        return res.status(403).json({ message: 'You can only delete your own comments' })
+      }
+      return res.status(404).json({ message: 'Comment not found' })
+    }
+
+    // Decrement commentCount on post
+    await postsCollection.updateOne(
+      { _id: new ObjectId(postId) },
+      { $inc: { commentCount: -1 } }
+    )
+
+    return res.status(204).end()
+  } catch (error) {
+    console.error('Delete comment error', error)
+    return res.status(500).json({ message: 'Failed to delete comment' })
   }
 })
 
@@ -1308,6 +1545,8 @@ async function start() {
     workoutExercisesCollection = db.collection('workoutExercises')
     setsCollection = db.collection('sets')
     postsCollection = db.collection('posts')
+    postLikesCollection = db.collection('postLikes')
+    postCommentsCollection = db.collection('postComments')
     await usersCollection.createIndex({ email: 1 }, { unique: true })
     await workoutsCollection.createIndex({ userId: 1, createdAt: -1 })
     await workoutsCollection.createIndex({ userId: 1, name: 1 }, { unique: true })
@@ -1323,6 +1562,12 @@ async function start() {
     await postsCollection.createIndex({ createdAt: -1 })
     await postsCollection.createIndex({ userId: 1, createdAt: -1 })
     await postsCollection.createIndex({ exerciseId: 1, createdAt: -1 })
+    // PostLikes indexes
+    await postLikesCollection.createIndex({ postId: 1, userId: 1 }, { unique: true })
+    await postLikesCollection.createIndex({ postId: 1 })
+    // PostComments indexes
+    await postCommentsCollection.createIndex({ postId: 1, createdAt: 1 })
+    await postCommentsCollection.createIndex({ userId: 1 })
 
     app.listen(PORT, () => {
       console.log(`API listening on http://localhost:${PORT}`)
