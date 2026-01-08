@@ -435,7 +435,7 @@
   box-shadow: 0 14px 24px rgba(0, 0, 0, 0.35);
   min-width: 190px;
   padding: 0.35rem;
-  z-index: 9000;
+  z-index: 0;
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
@@ -475,12 +475,12 @@
   position: absolute;
   top: 110%;
   right: 0;
-  background: #161616;
-  border: 1px solid rgba(245, 231, 198, 0.18);
+  background: #f7ead0;
+  border: 1px solid rgba(34, 34, 34, 0.12);
   border-radius: 0.9rem;
   box-shadow: 0 14px 24px rgba(0, 0, 0, 0.35);
   padding: 0.9rem;
-  z-index: 9500;
+  z-index: 10500;
   min-width: 230px;
   display: flex;
   flex-direction: column;
@@ -489,26 +489,33 @@
 
 .confirm-dialog__message {
   margin: 0;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #222222;
+  font-size: 1rem;
 }
 
-.confirm-dialog__actions,
-.move-dialog__actions,
-.exercise-rename__actions {
+.confirm-dialog__actions {
   display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: stretch;
+}
+
+.confirm-dialog__primary,
+.confirm-dialog__secondary {
+  flex: 1;
+  padding: 0.65rem 1.2rem;
+  border-radius: 0.6rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  transition: all 0.15s ease;
 }
 
 .confirm-dialog__primary {
   background: #c73434;
-  color: #fff4ec;
+  color: #ffffff;
   border: none;
-  padding: 0.55rem 1rem;
-  border-radius: 0.7rem;
-  cursor: pointer;
-  font-weight: 700;
 }
 
 .confirm-dialog__primary:hover,
@@ -517,12 +524,22 @@
 }
 
 .confirm-dialog__secondary {
-  background: transparent;
-  color: #f5e7c6;
-  border: 1px solid rgba(245, 231, 198, 0.3);
-  padding: 0.55rem 1rem;
-  border-radius: 0.7rem;
-  cursor: pointer;
+  background: #ffffff;
+  color: #222222;
+  border: 1px solid rgba(34, 34, 34, 0.15);
+}
+
+.confirm-dialog__secondary:hover,
+.confirm-dialog__secondary:focus-visible {
+  background: #f5f5f5;
+  border-color: rgba(34, 34, 34, 0.25);
+}
+
+.move-dialog__actions,
+.exercise-rename__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 .move-dialog__field {

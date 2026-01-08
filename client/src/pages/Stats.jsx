@@ -1240,8 +1240,26 @@ function WorkoutMenu({ isOpen, onClose, onRename, onCopy, onDelete }) {
 }
 
 function ConfirmDialog({ message, onConfirm, onCancel }) {
+  const dialogRef = useRef(null)
+
+  useEffect(() => {
+    const handlePointer = (event) => {
+      if (dialogRef.current?.contains(event.target)) {
+        return
+      }
+      onCancel?.()
+    }
+
+    document.addEventListener('mousedown', handlePointer)
+    document.addEventListener('touchstart', handlePointer)
+    return () => {
+      document.removeEventListener('mousedown', handlePointer)
+      document.removeEventListener('touchstart', handlePointer)
+    }
+  }, [onCancel])
+
   return (
-    <div className="confirm-dialog" role="dialog" aria-modal="true">
+    <div className="confirm-dialog" role="dialog" aria-modal="true" ref={dialogRef}>
       <p className="confirm-dialog__message">{message}</p>
       <div className="confirm-dialog__actions">
         <button type="button" className="confirm-dialog__secondary" onClick={onCancel}>Avbryt</button>
