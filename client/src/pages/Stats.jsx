@@ -2200,19 +2200,41 @@ function MoveDialog({ workouts, currentWorkoutId, value, onChange, onConfirm, on
 function PostBoard({ user }) {
   const [posts, setPosts] = useState([])
   const [isCreatingPost, setIsCreatingPost] = useState(false)
-
-  // Placeholder data for UI demonstration
-  const demoPost = {
-    _id: 'demo-1',
-    title: 'Min första post',
-    createdAt: new Date().toISOString()
-  }
+  const [postTitle, setPostTitle] = useState('')
+  const [selectedChartType, setSelectedChartType] = useState('bar')
+  const [selectedMetric, setSelectedMetric] = useState('maxWeight')
+  const [isSavingPost, setIsSavingPost] = useState(false)
 
   const formatPostDate = useCallback((value) => {
     if (!value) return ''
     const parsed = new Date(value)
     if (Number.isNaN(parsed.getTime())) return ''
     return parsed.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' })
+  }, [])
+
+  const handleCreatePost = useCallback((e) => {
+    e.preventDefault()
+    if (!postTitle.trim()) return
+    
+    // TODO: API call to save post
+    console.log('Creating post:', {
+      title: postTitle,
+      chartType: selectedChartType,
+      metric: selectedMetric
+    })
+    
+    // Reset form
+    setPostTitle('')
+    setSelectedChartType('bar')
+    setSelectedMetric('maxWeight')
+    setIsCreatingPost(false)
+  }, [postTitle, selectedChartType, selectedMetric])
+
+  const handleCancelPost = useCallback(() => {
+    setPostTitle('')
+    setSelectedChartType('bar')
+    setSelectedMetric('maxWeight')
+    setIsCreatingPost(false)
   }, [])
 
   if (!user) {
@@ -2286,38 +2308,125 @@ function PostBoard({ user }) {
         >
           <span aria-hidden="true">+</span>
         </button>
+      </div>
 
-        {/* Create post form */}
-        {isCreatingPost && (
-          <form
-            className="pass-tile pass-tile--form"
-            onSubmit={(e) => {
-              e.preventDefault()
-              // TODO: Handle post creation
-              setIsCreatingPost(false)
-            }}
-          >
-            <input
-              type="text"
-              className="pass-form__input"
-              placeholder="Post-titel"
-              autoFocus
-            />
-            <div className="pass-form__actions">
-              <button
-                type="button"
-                className="pass-form__cancel"
-                onClick={() => setIsCreatingPost(false)}
+      {/* Create post panel - expanded form */}
+      {isCreatingPost && (
+        <div className="post-creator">
+          <div className="post-creator__header">
+            <h3>Skapa grafpost</h3>
+            <button 
+              type="button" 
+              className="post-creator__close"
+              onClick={handleCancelPost}
+              aria-label="Stäng"
+            >
+              ✕
+            </button>
+          </div>
+
+          <form className="post-creator__form" onSubmit={handleCreatePost}>
+            <div className="post-creator__section">
+              <label className="post-creator__label">
+                <span>Titel på post</span>
+                <input
+                  type="text"
+                  className="post-creator__input"
+                  value={postTitle}
+                  onChange={(e) => setPostTitle(e.target.value)}
+                  placeholder="Ex. Bänkpress progression"
+                  maxLength={100}
+                  autoFocus
+                  required
+                />
+              </label>
+            </div>
+
+            <div className="post-creator__section">
+              <label className="post-creator__label">
+                <span>Övning</span>
+                <select 
+                  className="post-creator__select"
+                  defaultValue=""
+                  required
+                >
+                  <option value="" disabled>Välj övning...</option>
+                  <option value="1">Bänkpress</option>
+                  <option value="2">Squats</option>
+                  <option value="3">Deadlift</option>
+                  {/* TODO: Dynamic list from exercises */}
+                </select>
+              </label>
+            </div>
+
+            <div className="post-creator__section">
+              <label className="post-creator__label">
+                <span>Graftyp</span>
+                <div className="post-creator__chart-type">
+                  <button
+                    type="button"
+                    className={`post-creator__chart-btn ${selectedChartType === 'bar' ? 'post-creator__chart-btn--active' : ''}`}
+                    onClick={() => setSelectedChartType('bar')}
+                  >
+                    📊 Staplar
+                  </button>
+                  <button
+                    type="button"
+                    className={`post-creator__chart-btn ${selectedChartType === 'line' ? 'post-creator__chart-btn--active' : ''}`}
+                    onClick={() => setSelectedChartType('line')}
+                  >
+                    📈 Linje
+                  </button>
+                </div>
+              </label>
+            </div>
+
+            <div className="post-creator__section">
+              <label className="post-creator__label">
+                <span>Metric</span>
+                <select 
+                  className="post-creator__select"
+                  value={selectedMetric}
+                  onChange={(e) => setSelectedMetric(e.target.value)}
+                >
+                  <option value="maxWeight">Max vikt (top set)</option>
+                  <option value="totalVolume">Total volym</option>
+                  <option value="e1rm">Estimerat 1RM</option>
+                  <option value="setCount">Antal set</option>
+                  {selectedChartType === 'bar' && <option value="allSets">Alla set (detaljvy)</option>}
+                </select>
+              </label>
+            </div>
+
+            <div className="post-creator__preview">
+              <p className="post-creator__preview-label">Förhandsvisning</p>
+              <div className="post-creator__preview-chart">
+                <div className="post-creator__preview-placeholder">
+                  {selectedChartType === 'bar' ? '📊' : '📈'} Graf kommer visas här
+                </div>
+              </div>
+            </div>
+
+            <div className="post-creator__actions">
+              <button 
+                type="button" 
+                className="post-creator__cancel"
+                onClick={handleCancelPost}
+                disabled={isSavingPost}
               >
                 Avbryt
               </button>
-              <button type="submit" className="pass-form__submit">
-                Skapa
+              <button 
+                type="submit" 
+                className="post-creator__submit"
+                disabled={!postTitle.trim() || isSavingPost}
+              >
+                {isSavingPost ? 'Postar...' : 'Posta till Flow'}
               </button>
             </div>
           </form>
-        )}
-      </div>
+        </div>
+      )}
     </section>
   )
 }

@@ -1340,3 +1340,205 @@
   background: rgba(199, 52, 52, 0.12);
   color: #a82828;
 }
+
+/* Post Creator */
+.post-creator {
+  margin: 1.5rem auto 0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(245, 231, 198, 0.2);
+  border-radius: 1.5rem;
+  padding: 2rem;
+  width: 100%;
+  max-width: 960px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.post-creator__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(245, 231, 198, 0.15);
+}
+
+.post-creator__header h3 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #f5e7c6;
+}
+
+.post-creator__close {
+  background: transparent;
+  border: none;
+  color: rgba(245, 231, 198, 0.6);
+  font-size: 1.5rem;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+.post-creator__close:hover {
+  background: rgba(245, 231, 198, 0.1);
+  color: #f5e7c6;
+}
+
+.post-creator__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.post-creator__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.post-creator__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.post-creator__label > span {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(245, 231, 198, 0.8);
+}
+
+.post-creator__input,
+.post-creator__select {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(245, 231, 198, 0.25);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  color: #f5e7c6;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.post-creator__input:focus,
+.post-creator__select:focus {
+  outline: none;
+  border-color: rgba(245, 231, 198, 0.5);
+}
+
+.post-creator__select {
+  cursor: pointer;
+}
+
+.post-creator__chart-type {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.post-creator__chart-btn {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(245, 231, 198, 0.2);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  color: rgba(245, 231, 198, 0.7);
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.post-creator__chart-btn:hover {
+  background: rgba(0, 0, 0, 0.4);
+  border-color: rgba(245, 231, 198, 0.35);
+}
+
+.post-creator__chart-btn--active {
+  background: rgba(99, 102, 241, 0.25);
+  border-color: #6366f1;
+  color: #a5b4fc;
+}
+
+.post-creator__preview {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(245, 231, 198, 0.15);
+  border-radius: 1rem;
+  padding: 1.5rem;
+}
+
+.post-creator__preview-label {
+  margin: 0 0 1rem 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(245, 231, 198, 0.6);
+}
+
+.post-creator__preview-chart {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0.75rem;
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.post-creator__preview-placeholder {
+  color: rgba(245, 231, 198, 0.4);
+  font-size: 1rem;
+  text-align: center;
+}
+
+.post-creator__actions {
+  display: flex;
+  gap: 0.75rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(245, 231, 198, 0.1);
+}
+
+.post-creator__cancel,
+.post-creator__submit {
+  flex: 1;
+  padding: 0.85rem 1.5rem;
+  border-radius: 0.75rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.post-creator__cancel {
+  background: transparent;
+  border: 1px solid rgba(245, 231, 198, 0.3);
+  color: rgba(245, 231, 198, 0.8);
+}
+
+.post-creator__cancel:hover:not(:disabled) {
+  background: rgba(245, 231, 198, 0.05);
+  border-color: rgba(245, 231, 198, 0.4);
+}
+
+.post-creator__submit {
+  background: #6366f1;
+  border: none;
+  color: white;
+}
+
+.post-creator__submit:hover:not(:disabled) {
+  background: #4f46e5;
+}
+
+.post-creator__submit:disabled,
+.post-creator__cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
