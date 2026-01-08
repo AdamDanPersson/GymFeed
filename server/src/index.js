@@ -22,6 +22,11 @@ let workoutsCollection
 let exercisesCollection
 let workoutExercisesCollection
 let setsCollection
+let postsCollection
+
+// Valid metrics and chart types for posts
+const VALID_METRICS = ['maxWeight', 'totalVolume', 'e1rm', 'setCount', 'allSets']
+const VALID_CHART_TYPES = ['bar', 'line']
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
@@ -1012,6 +1017,276 @@ app.get('/stats/monthly-visits', requireUser, async (req, res) => {
   }
 })
 
+// ==================== POSTS ENDPOINTS ====================
+
+// GET /exercises - Get all exercises for current user (for dropdown)
+app.get('/exercises', requireUser, async (req, res) => {
+  try {
+    const exercises = await exercisesCollection
+      .find({ userId: req.userId })
+      .sort({ name: 1 })
+      .toArray()
+
+    return res.json(
+      exercises.map((ex) => ({
+        _id: ex._id.toString(),
+        name: ex.name
+      }))
+    )
+  } catch (error) {
+    console.error('Get exercises error', error)
+    return res.status(500).json({ message: 'Failed to fetch exercises' })
+  }
+})
+
+// POST /posts - Create a new graph post
+app.post('/posts', requireUser, async (req, res) => {
+  const { type, title, description, exerciseId, chartType, metric, dateRange, dateMode, specificDates } = req.body
+
+  // Validate type
+  if (type !== 'graph') {
+    return res.status(400).json({ message: 'Only graph posts are supported' })
+  }
+
+  // Validate title
+  const trimmedTitle = typeof title === 'string' ? title.trim() : ''
+  if (!trimmedTitle) {
+    return res.status(400).json({ message: 'Title is required' })
+  }
+  if (trimmedTitle.length > 80) {
+    return res.status(400).json({ message: 'Title must be 80 characters or less' })
+  }
+
+  // Validate exerciseId
+  if (!exerciseId || !ObjectId.isValid(exerciseId)) {
+    return res.status(400).json({ message: 'Valid exerciseId is required' })
+  }
+
+  // Validate chartType
+  if (!VALID_CHART_TYPES.includes(chartType)) {
+    return res.status(400).json({ message: `chartType must be one of: ${VALID_CHART_TYPES.join(', ')}` })
+  }
+
+  // Validate metric
+  if (!VALID_METRICS.includes(metric)) {
+    return res.status(400).json({ message: `metric must be one of: ${VALID_METRICS.join(', ')}` })
+  }
+
+  // Validate dateRange
+  if (!dateRange || !dateRange.from || !dateRange.to) {
+    return res.status(400).json({ message: 'dateRange with from and to is required' })
+  }
+
+  const fromDate = new Date(dateRange.from)
+  const toDate = new Date(dateRange.to)
+
+  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+    return res.status(400).json({ message: 'Invalid date format in dateRange' })
+  }
+
+  if (fromDate > toDate) {
+    return res.status(400).json({ message: 'dateRange.from must be before dateRange.to' })
+  }
+
+  try {
+    // Verify exercise belongs to user
+    const exercise = await exercisesCollection.findOne({
+      _id: new ObjectId(exerciseId),
+      userId: req.userId
+    })
+
+    if (!exercise) {
+      return res.status(404).json({ message: 'Exercise not found or does not belong to you' })
+    }
+
+    // Get user info for author name
+    const user = await usersCollection.findOne({ _id: req.userId })
+    const authorName = user?.fullName || user?.firstName || 'Okänd'
+
+    const now = new Date()
+    const postDoc = {
+      userId: req.userId,
+      type: 'graph',
+      title: trimmedTitle,
+      description: typeof description === 'string' ? description.trim() : '',
+      exerciseId: new ObjectId(exerciseId),
+      exerciseName: exercise.name,
+      authorName,
+      chartType,
+      metric,
+      dateRange: {
+        from: fromDate,
+        to: toDate
+      },
+      dateMode: dateMode || 'range',
+      specificDates: Array.isArray(specificDates) ? specificDates : null,
+      graphConfig: {
+        chartType,
+        metric,
+        dateRange: {
+          from: fromDate,
+          to: toDate
+        }
+      },
+      createdAt: now,
+      likeCount: 0,
+      commentCount: 0
+    }
+
+    const result = await postsCollection.insertOne(postDoc)
+
+    return res.status(201).json({
+      _id: result.insertedId.toString(),
+      userId: postDoc.userId.toString(),
+      type: postDoc.type,
+      title: postDoc.title,
+      description: postDoc.description,
+      exerciseId: postDoc.exerciseId.toString(),
+      exerciseName: postDoc.exerciseName,
+      authorName: postDoc.authorName,
+      chartType: postDoc.chartType,
+      metric: postDoc.metric,
+      dateRange: postDoc.dateRange,
+      dateMode: postDoc.dateMode,
+      specificDates: postDoc.specificDates,
+      graphConfig: postDoc.graphConfig,
+      createdAt: postDoc.createdAt,
+      likeCount: postDoc.likeCount,
+      commentCount: postDoc.commentCount
+    })
+  } catch (error) {
+    console.error('Create post error', error)
+    return res.status(500).json({ message: 'Failed to create post' })
+  }
+})
+
+// GET /posts - Public feed with cursor pagination
+app.get('/posts', async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit) || 5, 50)
+  const cursor = req.query.cursor
+
+  try {
+    let query = {}
+
+    // Cursor-based pagination: get posts older than cursor
+    if (cursor) {
+      const cursorDate = new Date(cursor)
+      if (!isNaN(cursorDate.getTime())) {
+        query.createdAt = { $lt: cursorDate }
+      }
+    }
+
+    const posts = await postsCollection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit + 1) // Fetch one extra to check if there are more
+      .toArray()
+
+    const hasMore = posts.length > limit
+    const items = posts.slice(0, limit)
+
+    const nextCursor = hasMore && items.length > 0
+      ? items[items.length - 1].createdAt.toISOString()
+      : null
+
+    return res.json({
+      items: items.map((post) => ({
+        _id: post._id.toString(),
+        userId: post.userId.toString(),
+        type: post.type,
+        title: post.title,
+        description: post.description,
+        exerciseId: post.exerciseId.toString(),
+        exerciseName: post.exerciseName,
+        authorName: post.authorName,
+        chartType: post.chartType,
+        metric: post.metric,
+        dateRange: post.dateRange,
+        dateMode: post.dateMode,
+        specificDates: post.specificDates,
+        graphConfig: post.graphConfig,
+        createdAt: post.createdAt,
+        likeCount: post.likeCount,
+        commentCount: post.commentCount
+      })),
+      nextCursor
+    })
+  } catch (error) {
+    console.error('Get posts error', error)
+    return res.status(500).json({ message: 'Failed to fetch posts' })
+  }
+})
+
+// GET /posts/:postId - Get single post
+app.get('/posts/:postId', async (req, res) => {
+  const { postId } = req.params
+
+  if (!ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid post ID' })
+  }
+
+  try {
+    const post = await postsCollection.findOne({ _id: new ObjectId(postId) })
+
+    if (!post) {
+      return res.status(404).json({ message: 'Post not found' })
+    }
+
+    return res.json({
+      _id: post._id.toString(),
+      userId: post.userId.toString(),
+      type: post.type,
+      title: post.title,
+      description: post.description,
+      exerciseId: post.exerciseId.toString(),
+      exerciseName: post.exerciseName,
+      authorName: post.authorName,
+      chartType: post.chartType,
+      metric: post.metric,
+      dateRange: post.dateRange,
+      dateMode: post.dateMode,
+      specificDates: post.specificDates,
+      graphConfig: post.graphConfig,
+      createdAt: post.createdAt,
+      likeCount: post.likeCount,
+      commentCount: post.commentCount
+    })
+  } catch (error) {
+    console.error('Get post error', error)
+    return res.status(500).json({ message: 'Failed to fetch post' })
+  }
+})
+
+// DELETE /posts/:postId - Delete own post
+app.delete('/posts/:postId', requireUser, async (req, res) => {
+  const { postId } = req.params
+
+  if (!ObjectId.isValid(postId)) {
+    return res.status(400).json({ message: 'Invalid post ID' })
+  }
+
+  try {
+    const result = await postsCollection.deleteOne({
+      _id: new ObjectId(postId),
+      userId: req.userId
+    })
+
+    if (result.deletedCount === 0) {
+      // Check if post exists but belongs to someone else
+      const post = await postsCollection.findOne({ _id: new ObjectId(postId) })
+      if (post) {
+        return res.status(403).json({ message: 'You can only delete your own posts' })
+      }
+      return res.status(404).json({ message: 'Post not found' })
+    }
+
+    return res.status(204).end()
+  } catch (error) {
+    console.error('Delete post error', error)
+    return res.status(500).json({ message: 'Failed to delete post' })
+  }
+})
+
 function serializeWorkout(doc) {
   return {
     _id: doc._id.toString(),
@@ -1032,6 +1307,7 @@ async function start() {
     exercisesCollection = db.collection('exercises')
     workoutExercisesCollection = db.collection('workoutExercises')
     setsCollection = db.collection('sets')
+    postsCollection = db.collection('posts')
     await usersCollection.createIndex({ email: 1 }, { unique: true })
     await workoutsCollection.createIndex({ userId: 1, createdAt: -1 })
     await workoutsCollection.createIndex({ userId: 1, name: 1 }, { unique: true })
@@ -1043,6 +1319,10 @@ async function start() {
     )
     await setsCollection.createIndex({ userId: 1, exerciseId: 1, date: -1 })
     await setsCollection.createIndex({ userId: 1, groupId: 1 })
+    // Posts indexes
+    await postsCollection.createIndex({ createdAt: -1 })
+    await postsCollection.createIndex({ userId: 1, createdAt: -1 })
+    await postsCollection.createIndex({ exerciseId: 1, createdAt: -1 })
 
     app.listen(PORT, () => {
       console.log(`API listening on http://localhost:${PORT}`)

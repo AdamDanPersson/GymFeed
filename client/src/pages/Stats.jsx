@@ -32,7 +32,9 @@ import {
   renameWorkoutExercise,
   saveSetsBulk,
   getExerciseSets,
-  getMonthlyVisits
+  getMonthlyVisits,
+  fetchExercises,
+  createPost
 } from '../lib/apiClient'
 import './Stats.css'
 
@@ -2202,9 +2204,233 @@ function PostBoard({ user }) {
   const [isCreatingPost, setIsCreatingPost] = useState(false)
   const [postType, setPostType] = useState('graph') // 'graph' or 'image'
   const [postTitle, setPostTitle] = useState('')
+  const [postDescription, setPostDescription] = useState('')
+  const [selectedExerciseId, setSelectedExerciseId] = useState('')
   const [selectedChartType, setSelectedChartType] = useState('bar')
   const [selectedMetric, setSelectedMetric] = useState('maxWeight')
+  const [dateRangeFrom, setDateRangeFrom] = useState('')
+  const [dateRangeTo, setDateRangeTo] = useState('')
+  const [datePreset, setDatePreset] = useState('30d')
+  const [compareDay1, setCompareDay1] = useState('')
+  const [compareDay2, setCompareDay2] = useState('')
   const [isSavingPost, setIsSavingPost] = useState(false)
+  const [exercises, setExercises] = useState([])
+  const [isLoadingExercises, setIsLoadingExercises] = useState(false)
+  const [error, setError] = useState('')
+  const [previewData, setPreviewData] = useState([])
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false)
+  const [availableDates, setAvailableDates] = useState([])
+
+  // Calculate date presets
+  const applyDatePreset = useCallback((preset) => {
+    const now = new Date()
+    const to = now.toISOString().split('T')[0]
+    let from
+    
+    switch (preset) {
+      case '7d':
+        from = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        break
+      case '30d':
+        from = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        break
+      case '90d':
+        from = new Date(now - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        break
+      case '1y':
+        from = new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        break
+      case 'all':
+        from = '2020-01-01'
+        break
+      default:
+        from = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    }
+    
+    setDateRangeFrom(from)
+    setDateRangeTo(to)
+    setDatePreset(preset)
+  }, [])
+
+  // Set default dates on mount
+  useEffect(() => {
+    applyDatePreset('30d')
+  }, [applyDatePreset])
+
+  // Fetch user's exercises
+  useEffect(() => {
+    if (!user || !isCreatingPost) {
+      return
+    }
+
+    let ignore = false
+    setIsLoadingExercises(true)
+
+    fetchExercises()
+      .then((data) => {
+        if (!ignore) {
+          setExercises(data)
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch exercises:', err)
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoadingExercises(false)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [user, isCreatingPost])
+
+  // Fetch available dates when exercise changes (for two days dropdown)
+  useEffect(() => {
+    if (!selectedExerciseId) {
+      setAvailableDates([])
+      return
+    }
+
+    let ignore = false
+
+    getExerciseSets(selectedExerciseId)
+      .then((data) => {
+        if (ignore || !data.groups) return
+        
+        // Extract unique dates from groups
+        const dates = data.groups.map(group => {
+          const d = new Date(group.date)
+          return d.toISOString().split('T')[0]
+        })
+        
+        // Sort newest first
+        const uniqueDates = [...new Set(dates)].sort((a, b) => new Date(b) - new Date(a))
+        setAvailableDates(uniqueDates)
+      })
+      .catch((err) => {
+        console.error('Failed to fetch available dates:', err)
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [selectedExerciseId])
+
+  // Fetch preview data when exercise/metric/dateRange changes
+  useEffect(() => {
+    // Check if we have valid date inputs based on preset
+    const hasTwoDaysInput = datePreset === 'twoDays' && compareDay1 && compareDay2
+    const hasRangeInput = datePreset !== 'twoDays' && dateRangeFrom && dateRangeTo
+
+    if (!selectedExerciseId || (!hasTwoDaysInput && !hasRangeInput)) {
+      setPreviewData([])
+      return
+    }
+
+    let ignore = false
+    setIsLoadingPreview(true)
+
+    getExerciseSets(selectedExerciseId)
+      .then((data) => {
+        if (ignore || !data.groups) return
+
+        let filteredGroups
+
+        if (datePreset === 'twoDays') {
+          // Filter to only include the two specific days
+          const day1Str = compareDay1
+          const day2Str = compareDay2
+
+          filteredGroups = data.groups.filter(group => {
+            const groupDateStr = new Date(group.date).toISOString().split('T')[0]
+            return groupDateStr === day1Str || groupDateStr === day2Str
+          })
+        } else {
+          // Regular range filter
+          const fromDate = new Date(dateRangeFrom)
+          const toDate = new Date(dateRangeTo)
+          toDate.setHours(23, 59, 59, 999)
+
+          filteredGroups = data.groups.filter(group => {
+            const groupDate = new Date(group.date)
+            return groupDate >= fromDate && groupDate <= toDate
+          })
+        }
+
+        const sortedGroups = [...filteredGroups].sort((a, b) => 
+          new Date(a.date) - new Date(b.date)
+        )
+
+        let chartData = []
+
+        switch (selectedMetric) {
+          case 'maxWeight':
+            chartData = sortedGroups.map((group) => {
+              const maxWeight = Math.max(...group.sets.map(s => parseFloat(s.weight) || 0))
+              const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
+              return { date, value: maxWeight }
+            })
+            break
+
+          case 'totalVolume':
+            chartData = sortedGroups.map((group) => {
+              const volume = group.sets.reduce((sum, set) => {
+                const w = parseFloat(set.weight) || 0
+                const r = parseInt(set.reps) || 0
+                return sum + (w * r)
+              }, 0)
+              const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
+              return { date, value: Math.round(volume) }
+            })
+            break
+
+          case 'e1rm':
+            chartData = sortedGroups.map((group) => {
+              const e1rmValues = group.sets.map(s => {
+                const w = parseFloat(s.weight) || 0
+                const r = parseInt(s.reps) || 0
+                if (w === 0 || r === 0) return 0
+                return w * (1 + r / 30)
+              })
+              const maxE1rm = Math.max(...e1rmValues)
+              const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
+              return { date, value: Math.round(maxE1rm * 10) / 10 }
+            })
+            break
+
+          case 'setCount':
+            chartData = sortedGroups.map((group) => {
+              const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
+              return { date, value: group.sets.length }
+            })
+            break
+
+          default:
+            chartData = []
+        }
+
+        if (!ignore) {
+          setPreviewData(chartData)
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch preview data:', err)
+        if (!ignore) {
+          setPreviewData([])
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoadingPreview(false)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [selectedExerciseId, selectedMetric, dateRangeFrom, dateRangeTo, datePreset, compareDay1, compareDay2])
 
   const formatPostDate = useCallback((value) => {
     if (!value) return ''
@@ -2213,31 +2439,103 @@ function PostBoard({ user }) {
     return parsed.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' })
   }, [])
 
-  const handleCreatePost = useCallback((e) => {
+  const handleCreatePost = useCallback(async (e) => {
     e.preventDefault()
-    if (!postTitle.trim()) return
-    
-    // TODO: API call to save post
-    console.log('Creating post:', {
-      title: postTitle,
-      chartType: selectedChartType,
-      metric: selectedMetric
-    })
-    
-    // Reset form
-    setPostTitle('')
-    setSelectedChartType('bar')
-    setSelectedMetric('maxWeight')
-    setIsCreatingPost(false)
-  }, [postTitle, selectedChartType, selectedMetric])
+    setError('')
+
+    // Validation
+    if (!postTitle.trim()) {
+      setError('Titel krävs')
+      return
+    }
+    if (!selectedExerciseId) {
+      setError('Välj en övning')
+      return
+    }
+
+    // Validate date inputs based on preset
+    if (datePreset === 'twoDays') {
+      if (!compareDay1 || !compareDay2) {
+        setError('Välj båda dagarna')
+        return
+      }
+    } else {
+      if (!dateRangeFrom || !dateRangeTo) {
+        setError('Välj datumintervall')
+        return
+      }
+    }
+
+    setIsSavingPost(true)
+
+    try {
+      // Build post payload
+      const postPayload = {
+        type: 'graph',
+        title: postTitle.trim(),
+        description: postDescription.trim(),
+        exerciseId: selectedExerciseId,
+        chartType: selectedChartType,
+        metric: selectedMetric,
+      }
+
+      if (datePreset === 'twoDays') {
+        // Store specific dates for two-day comparison
+        postPayload.dateMode = 'twoDays'
+        postPayload.specificDates = [compareDay1, compareDay2]
+        // Also store dateRange for backwards compatibility
+        const day1 = new Date(compareDay1)
+        const day2 = new Date(compareDay2)
+        const fromDate = day1 < day2 ? day1 : day2
+        const toDate = day1 < day2 ? day2 : day1
+        postPayload.dateRange = {
+          from: fromDate.toISOString(),
+          to: toDate.toISOString()
+        }
+      } else {
+        postPayload.dateMode = 'range'
+        postPayload.dateRange = {
+          from: new Date(dateRangeFrom).toISOString(),
+          to: new Date(dateRangeTo).toISOString()
+        }
+      }
+
+      const newPost = await createPost(postPayload)
+
+      console.log('Post created:', newPost)
+      
+      // Reset form
+      setPostTitle('')
+      setPostDescription('')
+      setSelectedExerciseId('')
+      setSelectedChartType('bar')
+      setSelectedMetric('maxWeight')
+      applyDatePreset('30d')
+      setIsCreatingPost(false)
+      
+      // Show success (post will appear in Flow)
+      alert('Post skapad! Den syns nu i Flow.')
+    } catch (err) {
+      console.error('Failed to create post:', err)
+      setError(err.message || 'Något gick fel')
+    } finally {
+      setIsSavingPost(false)
+    }
+  }, [postTitle, postDescription, selectedExerciseId, selectedChartType, selectedMetric, dateRangeFrom, dateRangeTo, datePreset, compareDay1, compareDay2, applyDatePreset])
 
   const handleCancelPost = useCallback(() => {
     setPostTitle('')
+    setPostDescription('')
     setPostType('graph')
+    setSelectedExerciseId('')
     setSelectedChartType('bar')
     setSelectedMetric('maxWeight')
+    applyDatePreset('30d')
+    setCompareDay1('')
+    setCompareDay2('')
+    setError('')
     setIsCreatingPost(false)
-  }, [])
+  }, [applyDatePreset])
 
   if (!user) {
     return (
@@ -2374,19 +2672,30 @@ function PostBoard({ user }) {
 
             {postType === 'graph' ? (
               <>
+                {error && (
+                  <div className="post-creator__error">
+                    {error}
+                  </div>
+                )}
+
                 <div className="post-creator__section">
                   <label className="post-creator__label">
                     <span>Övning</span>
                     <select 
                       className="post-creator__select"
-                      defaultValue=""
+                      value={selectedExerciseId}
+                      onChange={(e) => setSelectedExerciseId(e.target.value)}
                       required
+                      disabled={isLoadingExercises}
                     >
-                      <option value="" disabled>Välj övning...</option>
-                      <option value="1">Bänkpress</option>
-                      <option value="2">Squats</option>
-                      <option value="3">Deadlift</option>
-                      {/* TODO: Dynamic list from exercises */}
+                      <option value="" disabled>
+                        {isLoadingExercises ? 'Laddar övningar...' : 'Välj övning...'}
+                      </option>
+                      {exercises.map((ex) => (
+                        <option key={ex._id} value={ex._id}>
+                          {ex.name}
+                        </option>
+                      ))}
                     </select>
                   </label>
                 </div>
@@ -2440,9 +2749,109 @@ function PostBoard({ user }) {
 
                 <div className="post-creator__section">
                   <label className="post-creator__label">
+                    <span>Datumintervall</span>
+                    <div className="post-creator__date-presets">
+                      {[
+                        { key: '7d', label: '7 dagar' },
+                        { key: '30d', label: '30 dagar' },
+                        { key: '90d', label: '90 dagar' },
+                        { key: '1y', label: '1 år' },
+                        { key: 'all', label: 'Allt' },
+                        { key: 'custom', label: 'Anpassad' },
+                        { key: 'twoDays', label: '2 dagar' }
+                      ].map(({ key, label }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          className={`post-creator__date-preset ${datePreset === key ? 'post-creator__date-preset--active' : ''}`}
+                          onClick={() => {
+                            if (key !== 'custom') {
+                              applyDatePreset(key)
+                            } else {
+                              setDatePreset('custom')
+                            }
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </label>
+                </div>
+
+                {datePreset === 'custom' && (
+                  <div className="post-creator__section post-creator__section--row">
+                    <label className="post-creator__label post-creator__label--half">
+                      <span>Från</span>
+                      <input
+                        type="date"
+                        className="post-creator__input"
+                        value={dateRangeFrom}
+                        onChange={(e) => setDateRangeFrom(e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label className="post-creator__label post-creator__label--half">
+                      <span>Till</span>
+                      <input
+                        type="date"
+                        className="post-creator__input"
+                        value={dateRangeTo}
+                        onChange={(e) => setDateRangeTo(e.target.value)}
+                        required
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {datePreset === 'twoDays' && (
+                  <div className="post-creator__section post-creator__section--row">
+                    <label className="post-creator__label post-creator__label--half">
+                      <span>Dag 1</span>
+                      <select
+                        className="post-creator__select"
+                        value={compareDay1}
+                        onChange={(e) => setCompareDay1(e.target.value)}
+                        required
+                      >
+                        <option value="">Välj datum...</option>
+                        {availableDates
+                          .filter(d => d !== compareDay2)
+                          .map(date => (
+                            <option key={date} value={date}>
+                              {new Date(date).toLocaleDateString('sv-SE')}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                    <label className="post-creator__label post-creator__label--half">
+                      <span>Dag 2</span>
+                      <select
+                        className="post-creator__select"
+                        value={compareDay2}
+                        onChange={(e) => setCompareDay2(e.target.value)}
+                        required
+                      >
+                        <option value="">Välj datum...</option>
+                        {availableDates
+                          .filter(d => d !== compareDay1)
+                          .map(date => (
+                            <option key={date} value={date}>
+                              {new Date(date).toLocaleDateString('sv-SE')}
+                            </option>
+                          ))}
+                      </select>
+                    </label>
+                  </div>
+                )}
+
+                <div className="post-creator__section">
+                  <label className="post-creator__label">
                     <span>Beskrivning (valfritt)</span>
                     <textarea
                       className="post-creator__textarea"
+                      value={postDescription}
+                      onChange={(e) => setPostDescription(e.target.value)}
                       placeholder="Skriv en kort beskrivning om din progression..."
                       rows={3}
                       maxLength={500}
@@ -2453,20 +2862,64 @@ function PostBoard({ user }) {
                 <div className="post-creator__preview">
                   <p className="post-creator__preview-label">Förhandsvisning</p>
                   <div className="post-creator__preview-chart">
-                    <div className="post-creator__preview-placeholder">
-                      {selectedChartType === 'bar' ? (
+                    {isLoadingPreview ? (
+                      <div className="post-creator__preview-placeholder">
+                        <span>Laddar data...</span>
+                      </div>
+                    ) : !selectedExerciseId ? (
+                      <div className="post-creator__preview-placeholder">
                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="12" y1="20" x2="12" y2="10"/>
                           <line x1="18" y1="20" x2="18" y2="4"/>
                           <line x1="6" y1="20" x2="6" y2="16"/>
                         </svg>
-                      ) : (
-                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-                        </svg>
-                      )}
-                      <span>Graf kommer visas här</span>
-                    </div>
+                        <span>Välj en övning för att se graf</span>
+                      </div>
+                    ) : previewData.length === 0 ? (
+                      <div className="post-creator__preview-placeholder">
+                        <span>Ingen data för valt intervall</span>
+                      </div>
+                    ) : (
+                      <ResponsiveContainer width="100%" height={180}>
+                        {selectedChartType === 'bar' ? (
+                          <BarChart data={previewData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(245, 231, 198, 0.2)" />
+                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#f5e7c6' }} stroke="#f5e7c6" />
+                            <YAxis tick={{ fontSize: 10, fill: '#f5e7c6' }} stroke="#f5e7c6" />
+                            <Tooltip 
+                              contentStyle={{ 
+                                background: '#333', 
+                                border: '1px solid rgba(245, 231, 198, 0.2)',
+                                borderRadius: '8px',
+                                color: '#f5e7c6'
+                              }} 
+                            />
+                            <Bar dataKey="value" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        ) : (
+                          <LineChart data={previewData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(245, 231, 198, 0.2)" />
+                            <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#f5e7c6' }} stroke="#f5e7c6" />
+                            <YAxis tick={{ fontSize: 10, fill: '#f5e7c6' }} stroke="#f5e7c6" />
+                            <Tooltip 
+                              contentStyle={{ 
+                                background: '#333', 
+                                border: '1px solid rgba(245, 231, 198, 0.2)',
+                                borderRadius: '8px',
+                                color: '#f5e7c6'
+                              }} 
+                            />
+                            <Line 
+                              type="monotone" 
+                              dataKey="value" 
+                              stroke="#6366f1" 
+                              strokeWidth={2} 
+                              dot={{ r: 3, fill: '#6366f1' }} 
+                            />
+                          </LineChart>
+                        )}
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 </div>
               </>

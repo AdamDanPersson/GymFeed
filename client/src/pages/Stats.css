@@ -1629,3 +1629,55 @@
   cursor: not-allowed;
 }
 
+/* Date presets */
+.post-creator__date-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.post-creator__date-preset {
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(245, 231, 198, 0.2);
+  color: rgba(245, 231, 198, 0.8);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.post-creator__date-preset:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(245, 231, 198, 0.3);
+}
+
+.post-creator__date-preset--active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: #6366f1;
+  color: #a5b4fc;
+}
+
+/* Section row layout */
+.post-creator__section--row {
+  display: flex;
+  gap: 1rem;
+}
+
+.post-creator__label--half {
+  flex: 1;
+}
+
+/* Error message */
+.post-creator__error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+

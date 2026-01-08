@@ -198,4 +198,41 @@ export function getMonthlyVisits() {
   })
 }
 
+// ==================== EXERCISES ====================
+
+export function fetchExercises() {
+  return request('/exercises', {
+    requireUser: true
+  })
+}
+
+// ==================== POSTS ====================
+
+export function createPost(payload) {
+  return request('/posts', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    requireUser: true
+  })
+}
+
+export function fetchPosts({ limit = 5, cursor = null } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (cursor) {
+    params.set('cursor', cursor)
+  }
+  return request(`/posts?${params.toString()}`)
+}
+
+export function fetchPost(postId) {
+  return request(`/posts/${postId}`)
+}
+
+export function deletePost(postId) {
+  return request(`/posts/${postId}`, {
+    method: 'DELETE',
+    requireUser: true
+  })
+}
+
 export { getStoredUser, getStoredUserId }
