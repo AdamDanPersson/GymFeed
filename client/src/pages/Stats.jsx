@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
 import {
@@ -33,7 +33,6 @@ import {
   renameWorkoutExercise,
   saveSetsBulk,
   getExerciseSets,
-  getMonthlyVisits,
   fetchExercises,
   createPost,
   fetchPosts,
@@ -44,6 +43,8 @@ import {
   deleteComment,
   markCommentsAsRead
 } from '../lib/apiClient'
+import MonthlyVisitsChart from '../components/stats/MonthlyVisitsChart'
+import { ExerciseMenu, WorkoutMenu, ConfirmDialog, MoveDialog } from '../components/workout/WorkoutDialogs'
 import './Stats.css'
 
 function StatsPage() {
@@ -77,110 +78,6 @@ function StatsPage() {
     </main>
   )
 }
-
-// Monthly Gym Visits Chart Component
-const MonthlyVisitsChart = memo(function MonthlyVisitsChart({ user }) {
-  const [monthlyData, setMonthlyData] = useState([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  useEffect(() => {
-    if (!user) {
-      setMonthlyData([])
-      return
-    }
-
-    let ignore = false
-    setIsLoading(true)
-    setError('')
-
-    getMonthlyVisits()
-      .then((data) => {
-        if (!ignore) {
-          setMonthlyData(data)
-        }
-      })
-      .catch((err) => {
-        if (!ignore) {
-          setError(err.message)
-        }
-      })
-      .finally(() => {
-        if (!ignore) {
-          setIsLoading(false)
-        }
-      })
-
-    return () => {
-      ignore = true
-    }
-  }, [user])
-
-  const totalVisits = useMemo(() => {
-    return monthlyData.reduce((sum, month) => sum + month.visits, 0)
-  }, [monthlyData])
-
-  if (!user) {
-    return null
-  }
-
-  return (
-    <div className="monthly-visits-card">
-      <div className="monthly-visits-header">
-        <h2 className="monthly-visits-title">Gymbesök senaste 12 månaderna</h2>
-        <span className="monthly-visits-total">{totalVisits} besök totalt</span>
-      </div>
-      
-      {isLoading ? (
-        <p className="monthly-visits-loading">Laddar statistik...</p>
-      ) : error ? (
-        <p className="monthly-visits-error">{error}</p>
-      ) : monthlyData.length > 0 ? (
-        <div className="monthly-visits-chart">
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis 
-                dataKey="label" 
-                tick={{ fontSize: 11 }}
-                tickLine={false}
-              />
-              <YAxis 
-                allowDecimals={false}
-                tick={{ fontSize: 11 }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <Tooltip 
-                cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                content={({ active, payload }) => {
-                  if (!active || !payload || payload.length === 0) return null
-                  const data = payload[0]?.payload
-                  return (
-                    <div className="monthly-visits-tooltip">
-                      <p className="monthly-visits-tooltip-label">{data.label}</p>
-                      <p className="monthly-visits-tooltip-value">
-                        {data.visits} {data.visits === 1 ? 'besök' : 'besök'}
-                      </p>
-                    </div>
-                  )
-                }}
-              />
-              <Bar 
-                dataKey="visits" 
-                fill="#6366f1" 
-                radius={[4, 4, 0, 0]}
-                maxBarSize={50}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <p className="monthly-visits-empty">Ingen träningsdata ännu</p>
-      )}
-    </div>
-  )
-})
 
 
 
@@ -2035,168 +1932,6 @@ function ExerciseRow({
         </>
       )}
     </>
-  )
-}
-
-function ExerciseMenu({ isOpen, onClose, onRename, onCopy, onMove, onDelete, anchorRef }) {
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    const handlePointer = (event) => {
-      if (menuRef.current?.contains(event.target)) {
-        return
-      }
-      if (anchorRef?.current?.contains(event.target)) {
-        return
-      }
-      onClose?.()
-    }
-
-    const handleKey = (event) => {
-      if (event.key === 'Escape') {
-        onClose?.()
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointer)
-    document.addEventListener('touchstart', handlePointer)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handlePointer)
-      document.removeEventListener('touchstart', handlePointer)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [anchorRef, isOpen, onClose])
-
-  useEffect(() => {
-    if (isOpen && menuRef.current) {
-      const firstButton = menuRef.current.querySelector('button')
-      firstButton?.focus()
-    }
-  }, [isOpen])
-
-  if (!isOpen) {
-    return null
-  }
-
-  return (
-    <div className="exercise-menu" role="menu" ref={menuRef} tabIndex={-1}>
-      <button type="button" className="exercise-menu__item" role="menuitem" onClick={() => { onRename?.(); onClose?.() }}>Byt namn</button>
-      <button type="button" className="exercise-menu__item" role="menuitem" onClick={() => { onCopy?.(); onClose?.() }}>Kopiera</button>
-      <button type="button" className="exercise-menu__item" role="menuitem" onClick={() => { onMove?.(); onClose?.() }}>Flytta till annat pass</button>
-      <button type="button" className="exercise-menu__item exercise-menu__item--danger" role="menuitem" onClick={() => { onDelete?.(); onClose?.() }}>Ta bort</button>
-    </div>
-  )
-}
-
-function WorkoutMenu({ isOpen, onClose, onRename, onCopy, onDelete }) {
-  const menuRef = useRef(null)
-
-  useEffect(() => {
-    if (!isOpen) {
-      return
-    }
-
-    const handlePointer = (event) => {
-      if (menuRef.current?.contains(event.target)) {
-        return
-      }
-      onClose?.()
-    }
-
-    const handleKey = (event) => {
-      if (event.key === 'Escape') {
-        onClose?.()
-      }
-    }
-
-    document.addEventListener('mousedown', handlePointer)
-    document.addEventListener('touchstart', handlePointer)
-    document.addEventListener('keydown', handleKey)
-    return () => {
-      document.removeEventListener('mousedown', handlePointer)
-      document.removeEventListener('touchstart', handlePointer)
-      document.removeEventListener('keydown', handleKey)
-    }
-  }, [isOpen, onClose])
-
-  useEffect(() => {
-    if (isOpen && menuRef.current) {
-      const firstButton = menuRef.current.querySelector('button')
-      firstButton?.focus()
-    }
-  }, [isOpen])
-
-  if (!isOpen) {
-    return null
-  }
-
-  return (
-    <div className="workout-menu" role="menu" ref={menuRef} tabIndex={-1}>
-      <button type="button" className="workout-menu__item" role="menuitem" onClick={() => { onRename?.(); onClose?.() }}>Byt namn</button>
-      <button type="button" className="workout-menu__item" role="menuitem" onClick={() => { onCopy?.(); onClose?.() }}>Kopiera</button>
-      <button type="button" className="workout-menu__item workout-menu__item--danger" role="menuitem" onClick={() => { onDelete?.(); onClose?.() }}>Ta bort</button>
-    </div>
-  )
-}
-
-function ConfirmDialog({ message, onConfirm, onCancel }) {
-  const dialogRef = useRef(null)
-
-  useEffect(() => {
-    const handlePointer = (event) => {
-      if (dialogRef.current?.contains(event.target)) {
-        return
-      }
-      onCancel?.()
-    }
-
-    document.addEventListener('mousedown', handlePointer)
-    document.addEventListener('touchstart', handlePointer)
-    return () => {
-      document.removeEventListener('mousedown', handlePointer)
-      document.removeEventListener('touchstart', handlePointer)
-    }
-  }, [onCancel])
-
-  return (
-    <div className="confirm-dialog" role="dialog" aria-modal="true" ref={dialogRef}>
-      <p className="confirm-dialog__message">{message}</p>
-      <div className="confirm-dialog__actions">
-        <button type="button" className="confirm-dialog__secondary" onClick={onCancel}>Avbryt</button>
-        <button type="button" className="confirm-dialog__primary" onClick={onConfirm}>Ta bort</button>
-      </div>
-    </div>
-  )
-}
-
-function MoveDialog({ workouts, currentWorkoutId, value, onChange, onConfirm, onCancel }) {
-  const options = workouts.filter((workout) => workout._id !== currentWorkoutId)
-  const hasOptions = options.length > 0
-
-  return (
-    <div className="move-dialog" role="dialog" aria-modal="true">
-      <label className="move-dialog__field">
-        <span>Välj pass</span>
-        <select value={value} onChange={(event) => onChange?.(event.target.value)} disabled={!hasOptions}>
-          <option value="" disabled>Välj pass</option>
-          {options.map((workout) => (
-            <option key={workout._id} value={workout._id}>{workout.name}</option>
-          ))}
-        </select>
-      </label>
-      {!hasOptions && (
-        <p className="move-dialog__hint">Skapa ett annat pass för att kunna flytta</p>
-      )}
-      <div className="move-dialog__actions">
-        <button type="button" className="move-dialog__secondary" onClick={onCancel}>Avbryt</button>
-        <button type="button" className="move-dialog__primary" onClick={onConfirm} disabled={!value || !hasOptions}>Flytta</button>
-      </div>
-    </div>
   )
 }
 
