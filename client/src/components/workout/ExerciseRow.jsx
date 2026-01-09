@@ -202,6 +202,15 @@ export function ExerciseRow({
       })
     }
 
+    // "totalReps" - Sum of all reps per session
+    if (chartMetric === 'totalReps') {
+      return sortedGroups.map((group, groupIndex) => {
+        const totalReps = group.sets.reduce((sum, set) => sum + (parseInt(set.reps) || 0), 0)
+        const date = dateLabels[groupIndex]
+        return { date, value: totalReps, label: 'Totala reps' }
+      })
+    }
+
     // Default: "maxWeight" - Top set (highest weight) per session
     return sortedGroups.map((group, groupIndex) => {
       const maxWeight = Math.max(...group.sets.map(s => parseFloat(s.weight) || 0))
@@ -375,6 +384,7 @@ export function ExerciseRow({
                     <option value="totalVolume">Total volym</option>
                     <option value="e1rm">Estimerat 1RM</option>
                     <option value="setCount">Antal set</option>
+                    <option value="totalReps">Totala reps</option>
                     {chartType === 'bar' && <option value="allSets">Alla set (detaljvy)</option>}
                   </select>
                 </div>

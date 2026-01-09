@@ -52,6 +52,7 @@ const METRIC_LABELS = {
   totalVolume: 'Total volym',
   e1rm: 'Estimerat 1RM',
   setCount: 'Antal set',
+  totalReps: 'Totala reps',
   allSets: 'Alla set'
 }
 
@@ -143,6 +144,14 @@ function calculateChartData(groups, metric, dateRange, dateMode, specificDates) 
       return sortedGroups.map((group) => {
         const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
         return { date, value: group.sets.length }
+      })
+
+    case 'totalReps':
+      // Totala reps: summa av alla reps per tillfälle
+      return sortedGroups.map((group) => {
+        const totalReps = group.sets.reduce((sum, set) => sum + (parseInt(set.reps) || 0), 0)
+        const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
+        return { date, value: totalReps }
       })
 
     default:

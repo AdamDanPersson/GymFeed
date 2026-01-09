@@ -746,6 +746,14 @@ export default function PostBoard({ user, openPostCreator }) {
             })
             break
 
+          case 'totalReps':
+            chartData = sortedGroups.map((group) => {
+              const totalReps = group.sets.reduce((sum, set) => sum + (parseInt(set.reps) || 0), 0)
+              const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
+              return { date, value: totalReps }
+            })
+            break
+
           default:
             chartData = []
         }
@@ -1345,6 +1353,7 @@ export default function PostBoard({ user, openPostCreator }) {
                       <option value="totalVolume">Total volym</option>
                       <option value="e1rm">Estimerat 1RM</option>
                       <option value="setCount">Antal set</option>
+                      <option value="totalReps">Totala reps</option>
                       {selectedChartType === 'bar' && <option value="allSets">Alla set (detaljvy)</option>}
                     </select>
                   </label>
