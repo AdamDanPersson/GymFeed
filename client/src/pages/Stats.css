@@ -1332,6 +1332,52 @@
     flex: 1 1 calc(50% - 0.5rem);
     min-height: 120px;
   }
+  
+  /* Larger grip handle on mobile */
+  .pass-tile__grip {
+    padding: 0.5rem;
+    opacity: 0.6;
+  }
+  
+  .pass-tile__grip svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  /* Larger menu button on mobile */
+  .pass-tile__menu-btn {
+    padding: 0.6rem;
+  }
+  
+  .pass-tile__menu-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+  
+  /* Larger icons in exercise rows */
+  .exercise-row__grip {
+    padding: 0.5rem;
+  }
+  
+  .exercise-row__grip svg {
+    width: 20px;
+    height: 20px;
+  }
+  
+  .exercise-row__actions button {
+    padding: 0.5rem;
+  }
+  
+  .exercise-row__actions button svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* Touch action for draggable elements - prevents scroll during drag */
+.pass-tile__grip,
+.exercise-row__grip {
+  touch-action: none;
 }
 
 .workout-menu {

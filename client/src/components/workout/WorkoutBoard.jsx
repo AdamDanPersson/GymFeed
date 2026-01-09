@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import {
   addWorkoutExercise,
@@ -75,6 +75,12 @@ export default function WorkoutBoard({ user }) {
     useSensor(PointerSensor, {
       activationConstraint: {
         distance: 8
+      }
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 5
       }
     })
   )
