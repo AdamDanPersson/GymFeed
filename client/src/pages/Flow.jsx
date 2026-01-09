@@ -1,9 +1,52 @@
+/**
+ * Flow-sidan (Socialt Flöde)
+ * 
+ * Visar alla användares poster i ett scrollbart flöde.
+ * Funktioner inkluderar:
+ * - Visa poster med grafer eller bilder
+ * - Gilla och kommentera poster
+ * - Polling för nya poster (realtidsuppdatering)
+ * - Oändlig scroll med cursor-baserad paginering
+ * 
+ * Polling-logik:
+ * - Var 10:e sekund kontrolleras om det finns nya poster
+ * - Användaren ser en knapp för att ladda nya poster
+ * - Detta undviker att flödet plötsligt ändras under läsning
+ */
+
+// ==================== IMPORTS ====================
+// React hooks
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
+
+// Diagram-komponenter för att visa statistik
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { fetchPosts, fetchNewPosts, deletePost, getStoredUser, getStoredUserId, likePost, unlikePost, checkPostLike, fetchComments, addComment, deleteComment, fetchPostChartData } from '../lib/apiClient'
+
+// API-funktioner för datahantering
+import { 
+  fetchPosts, 
+  fetchNewPosts, 
+  deletePost, 
+  getStoredUser, 
+  getStoredUserId, 
+  likePost, 
+  unlikePost, 
+  checkPostLike, 
+  fetchComments, 
+  addComment, 
+  deleteComment, 
+  fetchPostChartData 
+} from '../lib/apiClient'
+
 import './Flow.css'
 
-// Metric labels for display
+// ==================== KONSTANTER ====================
+
+// ==================== KONSTANTER ====================
+
+/**
+ * Svenska etiketter för olika mätvärden i grafer
+ * Används för att visa användarvänliga namn i UI
+ */
 const METRIC_LABELS = {
   maxWeight: 'Max vikt',
   totalVolume: 'Total volym',
@@ -12,20 +55,39 @@ const METRIC_LABELS = {
   allSets: 'Alla set'
 }
 
-// Calculate chart data from sets based on metric
+// ==================== HJÄLPFUNKTIONER ====================
+
+/**
+ * Beräknar diagramdata från set-grupper baserat på valt mätvärde
+ * 
+ * Funktionen tar rådata från API:et och transformerar det till
+ * ett format som Recharts kan rendera. Stödjer olika mätvärden:
+ * - maxWeight: Högsta vikten per träningstillfälle
+ * - totalVolume: Total volym (vikt × reps) per tillfälle
+ * - e1rm: Estimerat 1 rep max med Epley-formeln
+ * - setCount: Antal set per tillfälle
+ * 
+ * @param {Array} groups - Grupper av set från API
+ * @param {string} metric - Vilket mätvärde som ska visas
+ * @param {Object} dateRange - Datumintervall med from/to
+ * @param {string} dateMode - 'range' eller 'twoDays'
+ * @param {Array} specificDates - Specifika datum vid 'twoDays'-läge
+ * @returns {Array} Formaterad data för Recharts
+ */
 function calculateChartData(groups, metric, dateRange, dateMode, specificDates) {
   if (!groups || groups.length === 0) return []
 
   let filteredGroups
 
+  // Filtrera grupper baserat på datumläge
   if (dateMode === 'twoDays' && specificDates && specificDates.length === 2) {
-    // Filter to only include the two specific dates
+    // Två-dagars jämförelse: filtrera till exakt dessa två datum
     filteredGroups = groups.filter(group => {
       const groupDateStr = new Date(group.date).toISOString().split('T')[0]
       return specificDates.includes(groupDateStr)
     })
   } else {
-    // Filter by date range - use date strings for comparison
+    // Intervall-läge: filtrera inom datumspånnet
     const fromDateStr = dateRange.from.split('T')[0]
     const toDateStr = dateRange.to.split('T')[0]
     
@@ -35,13 +97,15 @@ function calculateChartData(groups, metric, dateRange, dateMode, specificDates) 
     })
   }
 
-  // Sort by date ascending
+  // Sortera kronologiskt för korrekt grafordning
   const sortedGroups = [...filteredGroups].sort((a, b) => 
     new Date(a.date) - new Date(b.date)
   )
 
+  // Transformera data baserat på valt mätvärde
   switch (metric) {
     case 'maxWeight':
+      // Högsta vikt: hitta max bland alla set
       return sortedGroups.map((group) => {
         const maxWeight = Math.max(...group.sets.map(s => parseFloat(s.weight) || 0))
         const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
@@ -49,6 +113,7 @@ function calculateChartData(groups, metric, dateRange, dateMode, specificDates) 
       })
 
     case 'totalVolume':
+      // Total volym: summa av (vikt × reps) för alla set
       return sortedGroups.map((group) => {
         const volume = group.sets.reduce((sum, set) => {
           const w = parseFloat(set.weight) || 0
@@ -60,13 +125,13 @@ function calculateChartData(groups, metric, dateRange, dateMode, specificDates) 
       })
 
     case 'e1rm':
+      // Estimerat 1RM med Epley-formeln: vikt × (1 + reps/30)
       return sortedGroups.map((group) => {
-        // Epley formula: weight × (1 + reps/30)
         const e1rmValues = group.sets.map(s => {
           const w = parseFloat(s.weight) || 0
           const r = parseInt(s.reps) || 0
           if (w === 0 || r === 0) return 0
-          return w * (1 + r / 30)
+          return w * (1 + r / 30) // Epley-formeln
         })
         const maxE1rm = Math.max(...e1rmValues)
         const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
@@ -74,6 +139,7 @@ function calculateChartData(groups, metric, dateRange, dateMode, specificDates) 
       })
 
     case 'setCount':
+      // Antal set: räkna antalet set per tillfälle
       return sortedGroups.map((group) => {
         const date = new Date(group.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })
         return { date, value: group.sets.length }
@@ -84,18 +150,34 @@ function calculateChartData(groups, metric, dateRange, dateMode, specificDates) 
   }
 }
 
-// Graph Post Card Component
+// ==================== KOMPONENTER ====================
+
+/**
+ * GraphPostCard - Visar en enskild post i flödet
+ * 
+ * Hanterar både graf-poster (med diagram) och bild-poster.
+ * Inkluderar funktionalitet för:
+ * - Visa/dölj kommentarer
+ * - Gilla/avgilla
+ * - Ta bort (endast ägarens poster)
+ * 
+ * @param {Object} post - Posten som ska visas
+ * @param {string} currentUserId - Inloggad användares ID
+ * @param {Function} onDelete - Callback när post tas bort
+ * @param {Function} onUpdatePost - Callback för att uppdatera post
+ */
 function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
+  // ===== DIAGRAM-STATE =====
   const [chartData, setChartData] = useState([])
   const [isLoadingChart, setIsLoadingChart] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   
-  // Likes state
+  // ===== GILLA-STATE =====
   const [isLiked, setIsLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(post.likeCount || 0)
   const [isLiking, setIsLiking] = useState(false)
   
-  // Comments state
+  // ===== KOMMENTAR-STATE =====
   const [comments, setComments] = useState([])
   const [showComments, setShowComments] = useState(false)
   const [isLoadingComments, setIsLoadingComments] = useState(false)
@@ -103,6 +185,7 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
   const [commentCount, setCommentCount] = useState(post.commentCount || 0)
 
+  // ===== BERÄKNADE VÄRDEN =====
   const isOwner = currentUserId && post.userId === currentUserId
   const isLoggedIn = !!currentUserId
 
@@ -433,25 +516,45 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
   )
 }
 
+/**
+ * FlowPage - Huvudkomponent för det sociala flödet
+ * 
+ * Hanterar:
+ * - Initial laddning av poster
+ * - Polling för nya poster (var 10:e sekund)
+ * - Oändlig scroll med "Ladda fler"-knapp
+ * - Borttagning av poster
+ * 
+ * Polling-strategi:
+ * Vi använder polling istället för WebSockets för enkelhet.
+ * Nya poster visas inte automatiskt - användaren måste
+ * klicka på en knapp för att ladda dem. Detta förhindrar
+ * att innehållet "hoppar" medan användaren läser.
+ */
 function FlowPage() {
-  const [posts, setPosts] = useState([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [nextCursor, setNextCursor] = useState(null)
-  const [error, setError] = useState('')
+  // ===== POSTER-STATE =====
+  const [posts, setPosts] = useState([])           // Lista med poster
+  const [isLoading, setIsLoading] = useState(true) // Första laddningen
+  const [isLoadingMore, setIsLoadingMore] = useState(false) // Laddar fler
+  const [nextCursor, setNextCursor] = useState(null) // Cursor för paginering
+  const [error, setError] = useState('') // Felmeddelande
   
-  // New posts state
-  const [newPostsCount, setNewPostsCount] = useState(0)
-  const [latestPostTime, setLatestPostTime] = useState(null)
+  // ===== NYA POSTER-STATE (för polling) =====
+  const [newPostsCount, setNewPostsCount] = useState(0)     // Antal nya poster
+  const [latestPostTime, setLatestPostTime] = useState(null) // Senaste postens tid
   const [isLoadingNewPosts, setIsLoadingNewPosts] = useState(false)
-  const pollingIntervalRef = useRef(null)
-  const feedContainerRef = useRef(null)
+  
+  // ===== REFS =====
+  const pollingIntervalRef = useRef(null)  // Referens till polling-intervallet
+  const feedContainerRef = useRef(null)    // Referens till flödes-containern
 
+  // Hämta inloggad användares ID (memoized för prestanda)
   const currentUserId = useMemo(() => getStoredUserId(), [])
 
-  // Initial load
+  // ===== INITIAL LADDNING =====
+  // Hämtar de första posterna när sidan laddas
   useEffect(() => {
-    let ignore = false
+    let ignore = false // Undvik race conditions vid snabb navigering
     setIsLoading(true)
     setError('')
 
@@ -462,7 +565,8 @@ function FlowPage() {
           setPosts(items)
           setNextCursor(data.nextCursor)
           
-          // Set the latest post time for polling
+          // Spara senaste postens tid för polling
+          // Detta är referenspunkten för att hitta "nya" poster
           if (items.length > 0) {
             setLatestPostTime(items[0].createdAt)
           }
@@ -480,15 +584,23 @@ function FlowPage() {
         }
       })
 
+    // Cleanup-funktion som körs vid unmount
     return () => {
       ignore = true
     }
   }, [])
 
-  // Polling for new posts
+  // ===== POLLING FÖR NYA POSTER =====
+  // Kontrollerar var 10:e sekund om det finns nya poster
+  // Visar en badge/knapp istället för att automatiskt ladda dem
   useEffect(() => {
+    // Starta inte polling förrän vi har en referenstid och initial laddning är klar
     if (!latestPostTime || isLoading) return
 
+    /**
+     * Kontrollerar om det finns nya poster sedan senaste kända posten
+     * Uppdaterar endast räknaren, laddar inte posterna automatiskt
+     */
     const checkForNewPosts = async () => {
       try {
         const data = await fetchNewPosts({ after: latestPostTime, limit: 20 })
@@ -496,13 +608,15 @@ function FlowPage() {
           setNewPostsCount(data.count)
         }
       } catch (err) {
+        // Tysta fel - polling ska inte störa användaren
         console.error('Failed to check for new posts:', err)
       }
     }
 
-    // Poll every 10 seconds
+    // Starta polling med 10 sekunders intervall
     pollingIntervalRef.current = setInterval(checkForNewPosts, 10000)
 
+    // Cleanup: stoppa polling när komponenten unmountas
     return () => {
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current)
@@ -510,7 +624,8 @@ function FlowPage() {
     }
   }, [latestPostTime, isLoading])
 
-  // Load new posts when clicking the button
+  // ===== LADDA NYA POSTER =====
+  // Anropas när användaren klickar på "Nya poster"-knappen
   const loadNewPosts = useCallback(async () => {
     if (!latestPostTime || isLoadingNewPosts) return
 
@@ -519,22 +634,23 @@ function FlowPage() {
     try {
       const data = await fetchNewPosts({ after: latestPostTime, limit: 20 })
       if (data.items && data.items.length > 0) {
-        // Prepend new posts (they're sorted oldest first from API)
+        // Lägg till nya poster överst i listan
         setPosts(prev => {
-          // Avoid duplicates
+          // Undvik dubletter genom att filtrera bort redan existerande
           const existingIds = new Set(prev.map(p => p._id))
           const newItems = data.items.filter(p => !existingIds.has(p._id))
-          return [...newItems.reverse(), ...prev] // Reverse to show newest first
+          // Reversa eftersom API:et returnerar äldst först
+          return [...newItems.reverse(), ...prev]
         })
         
-        // Update latest post time
+        // Uppdatera referenstiden till den nyaste posten
         const newestPost = data.items[data.items.length - 1]
         setLatestPostTime(newestPost.createdAt)
         
-        // Reset count and scroll to top
+        // Nollställ räknaren och scrolla upp
         setNewPostsCount(0)
         
-        // Smooth scroll to top
+        // Smooth scroll till toppen
         if (feedContainerRef.current) {
           feedContainerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
         } else {
@@ -548,8 +664,10 @@ function FlowPage() {
     }
   }, [latestPostTime, isLoadingNewPosts])
 
-  // Load more posts
+  // ===== LADDA FLER POSTER =====
+  // Oändlig scroll: laddar äldre poster när användaren scrollar ner
   const loadMore = useCallback(async () => {
+    // Avbryt om det inte finns fler poster eller laddning pågår
     if (!nextCursor || isLoadingMore) return
 
     setIsLoadingMore(true)

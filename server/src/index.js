@@ -1,15 +1,31 @@
+/**
+ * GymFeed API Server
+ * 
+ * Huvudsaklig backend för GymFeed-appen. Hanterar:
+ * - Användarautentisering (registrering/inloggning)
+ * - Träningspass och övningar
+ * - Set-loggning och statistik
+ * - Sociala funktioner (poster, gilla-markeringar, kommentarer)
+ * 
+ * @author GymFeed Team
+ */
+
+// ==================== IMPORTS ====================
 import cors from 'cors'
 import dotenv from 'dotenv'
 import express from 'express'
 import { MongoClient, ObjectId } from 'mongodb'
 
+// ==================== KONFIGURATION ====================
 dotenv.config()
 
+// Serverns portnummer och databaskonfiguration
 const PORT = process.env.PORT || 3000
 const DB_NAME = process.env.DB_NAME || 'GymFeed'
 const MONGODB_URI = process.env.MONGODB_URI
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 
+// Validera att nödvändiga miljövariabler finns
 if (!MONGODB_URI) {
   throw new Error('Missing MONGODB_URI in environment variables')
 }
@@ -42,24 +58,40 @@ const corsOptions = {
 app.use(cors(corsOptions))
 app.use(express.json())
 
-let usersCollection
-let workoutsCollection
-let exercisesCollection
-let workoutExercisesCollection
-let setsCollection
-let postsCollection
-let postLikesCollection
-let postCommentsCollection
-let postUnreadCommentsCollection
+// ==================== DATABASSAMLINGAR ====================
+// Deklareras här och initieras vid serverstart
+let usersCollection              // Användarkonton
+let workoutsCollection           // Träningspass
+let exercisesCollection          // Övningar
+let workoutExercisesCollection   // Koppling mellan pass och övningar
+let setsCollection               // Loggade set
+let postsCollection              // Sociala poster (flödet)
+let postLikesCollection          // Gilla-markeringar på poster
+let postCommentsCollection       // Kommentarer på poster
+let postUnreadCommentsCollection // Räknare för olästa kommentarer
 
-// Valid metrics and chart types for posts
+// ==================== KONSTANTER ====================
+// Giltiga mätvärden för grafer i poster
 const VALID_METRICS = ['maxWeight', 'totalVolume', 'e1rm', 'setCount', 'allSets']
+// Giltiga diagramtyper
 const VALID_CHART_TYPES = ['bar', 'line']
 
+// ==================== HÄLSOKONTROLL ====================
+
+/**
+ * Health check endpoint för att verifiera att servern är igång
+ * Används av deployment-plattformar för att övervaka serverns status
+ */
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
 })
 
+// ==================== AUTENTISERING ====================
+
+/**
+ * POST /auth/register - Registrera ny användare
+ * Kräver: email, password (minst 8 tecken), firstName, lastName
+ */
 app.post('/auth/register', async (req, res) => {
   const { email, password, firstName, lastName } = req.body
 
@@ -108,6 +140,11 @@ app.post('/auth/register', async (req, res) => {
   }
 })
 
+/**
+ * POST /auth/login - Logga in användare
+ * Kräver: email, password
+ * Returnerar: userId, email, namn
+ */
 app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body
 
@@ -138,6 +175,12 @@ app.post('/auth/login', async (req, res) => {
   }
 })
 
+// ==================== MIDDLEWARE ====================
+
+/**
+ * Middleware för att verifiera att användaren är inloggad
+ * Kontrollerar x-user-id header och sätter req.userId
+ */
 function requireUser(req, res, next) {
   const userIdHeader = req.header('x-user-id')?.trim()
 
@@ -149,6 +192,12 @@ function requireUser(req, res, next) {
   next()
 }
 
+// ==================== TRÄNINGSPASS (WORKOUTS) ====================
+
+/**
+ * GET /workouts - Hämta alla träningspass för inloggad användare
+ * Sorterade efter ordning, sedan skapelsedatum
+ */
 app.get('/workouts', requireUser, async (req, res) => {
   try {
     const docs = await workoutsCollection
@@ -163,6 +212,10 @@ app.get('/workouts', requireUser, async (req, res) => {
   }
 })
 
+/**
+ * POST /workouts - Skapa nytt träningspass
+ * Kräver: name (namn på passet)
+ */
 app.post('/workouts', requireUser, async (req, res) => {
   const name = typeof req.body?.name === 'string' ? req.body.name.trim() : ''
 
@@ -350,6 +403,15 @@ app.post('/workouts/:id/copy', requireUser, async (req, res) => {
   }
 })
 
+// ==================== HJÄLPFUNKTIONER ====================
+
+/**
+ * Verifierar att ett träningspass tillhör användaren
+ * @param {string} workoutId - ID för träningspasset
+ * @param {ObjectId} userId - Användarens ID
+ * @returns {ObjectId} ObjectId för träningspasset
+ * @throws {Error} Om passet inte finns eller inte tillhör användaren
+ */
 async function assertWorkoutOwner(workoutId, userId) {
   if (!ObjectId.isValid(workoutId)) {
     const error = new Error('Invalid workout id')
@@ -368,6 +430,12 @@ async function assertWorkoutOwner(workoutId, userId) {
   return workoutObjectId
 }
 
+/**
+ * Formaterar en övningslänk till ett responsobjekt
+ * @param {Object} linkDoc - Länkdokumentet från databasen
+ * @param {Object} exerciseDoc - Övningsdokumentet
+ * @returns {Object} Formaterat responsobjekt
+ */
 function toLinkResponse(linkDoc, exerciseDoc) {
   return {
     linkId: linkDoc._id.toString(),
@@ -377,6 +445,11 @@ function toLinkResponse(linkDoc, exerciseDoc) {
   }
 }
 
+// ==================== ÖVNINGAR I TRÄNINGSPASS ====================
+
+/**
+ * GET /workouts/:workoutId/exercises - Hämta alla övningar i ett pass
+ */
 app.get('/workouts/:workoutId/exercises', requireUser, async (req, res) => {
   try {
     const workoutObjectId = await assertWorkoutOwner(req.params.workoutId, req.userId)
@@ -814,8 +887,13 @@ app.put('/workouts/reorder', requireUser, async (req, res) => {
   }
 })
 
-// ==================== SETS ENDPOINTS ====================
+// ==================== SET-LOGGNING ====================
 
+/**
+ * POST /exercises/:exerciseId/sets/bulk - Spara flera set på en gång
+ * Används när användaren sparar ett träningspass med alla set
+ * Kräver: sets[] med weight, reps, isDropSet för varje set
+ */
 app.post('/exercises/:exerciseId/sets/bulk', requireUser, async (req, res) => {
   const { exerciseId } = req.params
   const { sets } = req.body
@@ -995,10 +1073,16 @@ app.delete('/sets/:setId', requireUser, async (req, res) => {
   }
 })
 
-// Get monthly gym visit statistics (last 12 months)
+// ==================== STATISTIK ====================
+
+/**
+ * GET /stats/monthly-visits - Hämta gymbesöksstatistik
+ * Returnerar antal unika dagar med loggade set per månad (senaste 12 månaderna)
+ * Används för att visa användarens träningsfrekvens i statistikvyn
+ */
 app.get('/stats/monthly-visits', requireUser, async (req, res) => {
   try {
-    // Calculate date range: 12 months ago to now
+    // Beräkna datumintervall: 12 månader bakåt från nu
     const now = new Date()
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1) // Start of month 12 months ago
     
@@ -1048,9 +1132,12 @@ app.get('/stats/monthly-visits', requireUser, async (req, res) => {
   }
 })
 
-// ==================== POSTS ENDPOINTS ====================
+// ==================== POSTER (SOCIALT FLÖDE) ====================
 
-// GET /exercises - Get all exercises for current user (for dropdown)
+/**
+ * GET /exercises - Hämta alla övningar för dropdown-menyer
+ * Returnerar lista med övningsnamn och ID:n för inloggad användare
+ */
 app.get('/exercises', requireUser, async (req, res) => {
   try {
     const exercises = await exercisesCollection
@@ -1070,7 +1157,12 @@ app.get('/exercises', requireUser, async (req, res) => {
   }
 })
 
-// POST /posts - Create a new post (graph or image)
+/**
+ * POST /posts - Skapa ny post (graf eller bild)
+ * Graf-poster visar träningsstatistik med diagram
+ * Bild-poster visar uppladdade bilder
+ * Kräver: type ('graph' eller 'image'), title, och typ-specifik data
+ */
 app.post('/posts', requireUser, async (req, res) => {
   const { type, title, description, exerciseId, chartType, metric, dateRange, dateMode, specificDates, imageUrl } = req.body
 
@@ -1491,9 +1583,12 @@ app.delete('/posts/:postId', requireUser, async (req, res) => {
   }
 })
 
-// ==================== POST LIKES ====================
+// ==================== GILLA-MARKERINGAR ====================
 
-// POST /posts/:postId/like - Like a post
+/**
+ * POST /posts/:postId/like - Gilla en post
+ * En användare kan bara gilla en post en gång
+ */
 app.post('/posts/:postId/like', requireUser, async (req, res) => {
   const { postId } = req.params
 
@@ -1594,9 +1689,12 @@ app.get('/posts/:postId/like', requireUser, async (req, res) => {
   }
 })
 
-// ==================== POST COMMENTS ====================
+// ==================== KOMMENTARER ====================
 
-// GET /posts/:postId/comments - Get comments for a post
+/**
+ * GET /posts/:postId/comments - Hämta kommentarer för en post
+ * Offentligt endpoint - kräver inte inloggning
+ */
 app.get('/posts/:postId/comments', async (req, res) => {
   const { postId } = req.params
 
@@ -1762,6 +1860,13 @@ app.delete('/posts/:postId/comments/:commentId', requireUser, async (req, res) =
   }
 })
 
+// ==================== SERIALISERING ====================
+
+/**
+ * Formaterar ett träningspass-dokument till ett responsobjekt
+ * @param {Object} doc - Dokument från databasen
+ * @returns {Object} Formaterat objekt för API-respons
+ */
 function serializeWorkout(doc) {
   return {
     _id: doc._id.toString(),
@@ -1772,6 +1877,11 @@ function serializeWorkout(doc) {
   }
 }
 
+// ==================== SERVERSTART ====================
+
+/**
+ * Initierar databasanslutning, skapar index och startar servern
+ */
 async function start() {
   try {
     const client = new MongoClient(MONGODB_URI)

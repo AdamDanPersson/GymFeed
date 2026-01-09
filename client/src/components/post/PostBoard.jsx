@@ -1,5 +1,33 @@
+/**
+ * PostBoard - Hantering av användarens egna poster
+ * 
+ * Denna komponent hanterar skapande och hantering av användarens poster.
+ * Till skillnad från Flow.jsx som visar alla poster, visar denna
+ * endast den inloggade användarens egna poster.
+ * 
+ * Funktioner:
+ * - Skapa graf-poster (träningsstatistik med diagram)
+ * - Skapa bild-poster (uppladdade bilder)
+ * - Visa och hantera egna poster
+ * - Kommentarsystem med olästa-indikator
+ * - Bildbeskärning innan uppladdning
+ */
+
+// ==================== IMPORTS ====================
+// React hooks
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { BarChart, Bar, LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+
+// Diagram-komponenter från Recharts
+import { 
+  BarChart, Bar, 
+  LineChart, Line, 
+  CartesianGrid, 
+  XAxis, YAxis, 
+  Tooltip, 
+  ResponsiveContainer 
+} from 'recharts'
+
+// API-funktioner
 import {
   addComment,
   createPost,
@@ -13,75 +41,93 @@ import {
   getStoredUserId,
   markCommentsAsRead
 } from '../../lib/apiClient'
+
+// Firebase för bilduppladdning
 import { uploadPostImage } from '../../lib/firebase'
+
+// Bildbeskärningskomponent
 import ImageCropper from '../ImageCropper'
 
 export default function PostBoard({ user, openPostCreator }) {
-  const [posts, setPosts] = useState([])
-  const [isLoadingPosts, setIsLoadingPosts] = useState(true)
-  const [isCreatingPost, setIsCreatingPost] = useState(false)
-  const postBoardRef = useRef(null)
+  // ==================== STATE ====================
+  
+  // ===== POSTER-STATE =====
+  const [posts, setPosts] = useState([])              // Lista med användarens poster
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true)  // Laddningsstatus
+  const [isCreatingPost, setIsCreatingPost] = useState(false) // Visar skaparformuläret
+  const postBoardRef = useRef(null)                   // Referens för scroll-till-funktion
 
-  // Open post creator and scroll to section when triggered from navigation
+  // ===== EFFEKT: Öppna post-skapare från navigation =====
+  // När användaren klickar på "Skapa post" i navigationen
   useEffect(() => {
     if (openPostCreator && user) {
       setIsCreatingPost(true)
-      // Scroll to post section
+      // Scrolla till post-sektionen efter kort fördröjning för DOM-uppdatering
       setTimeout(() => {
         postBoardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }, 100)
     }
   }, [openPostCreator, user])
-  const [postType, setPostType] = useState('graph') // 'graph' or 'image'
-  const [postTitle, setPostTitle] = useState('')
-  const [postDescription, setPostDescription] = useState('')
-  const [selectedExerciseId, setSelectedExerciseId] = useState('')
-  const [selectedChartType, setSelectedChartType] = useState('bar')
-  const [selectedMetric, setSelectedMetric] = useState('maxWeight')
-  const [dateRangeFrom, setDateRangeFrom] = useState('')
-  const [dateRangeTo, setDateRangeTo] = useState('')
-  const [datePreset, setDatePreset] = useState('30d')
-  const [compareDay1, setCompareDay1] = useState('')
-  const [compareDay2, setCompareDay2] = useState('')
+  
+  // ===== FORMULÄR-STATE FÖR NY POST =====
+  const [postType, setPostType] = useState('graph')            // 'graph' eller 'image'
+  const [postTitle, setPostTitle] = useState('')               // Titel på posten
+  const [postDescription, setPostDescription] = useState('')   // Valfri beskrivning
+  
+  // ===== GRAF-SPECIFIK STATE =====
+  const [selectedExerciseId, setSelectedExerciseId] = useState('')  // Vald övning
+  const [selectedChartType, setSelectedChartType] = useState('bar') // 'bar' eller 'line'
+  const [selectedMetric, setSelectedMetric] = useState('maxWeight') // Mätvärde för graf
+  const [dateRangeFrom, setDateRangeFrom] = useState('')            // Startdatum
+  const [dateRangeTo, setDateRangeTo] = useState('')                // Slutdatum
+  const [datePreset, setDatePreset] = useState('30d')               // Datumpreset
+  const [compareDay1, setCompareDay1] = useState('')                // För två-dagars jämförelse
+  const [compareDay2, setCompareDay2] = useState('')                // För två-dagars jämförelse
+  
+  // ===== LADDNINGS- OCH FEL-STATE =====
   const [isSavingPost, setIsSavingPost] = useState(false)
-  const [exercises, setExercises] = useState([])
+  const [exercises, setExercises] = useState([])           // Lista med övningar för dropdown
   const [isLoadingExercises, setIsLoadingExercises] = useState(false)
-  const [error, setError] = useState('')
-  const [previewData, setPreviewData] = useState([])
+  const [error, setError] = useState('')                   // Felmeddelande
+  const [previewData, setPreviewData] = useState([])       // Data för graf-förhandsvisning
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
-  const [availableDates, setAvailableDates] = useState([])
+  const [availableDates, setAvailableDates] = useState([]) // Tillgängliga datum för övningen
   
-  // Image post state
-  const [selectedImage, setSelectedImage] = useState(null)
-  const [imagePreviewUrl, setImagePreviewUrl] = useState('')
+  // ===== BILD-UPPLADDNING STATE =====
+  const [selectedImage, setSelectedImage] = useState(null)     // Vald bildfil
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('')   // Förhandsvisnings-URL
   const [isUploadingImage, setIsUploadingImage] = useState(false)
-  const [showCropper, setShowCropper] = useState(false)
-  const [cropperImageSrc, setCropperImageSrc] = useState('')
-  const fileInputRef = useRef(null)
+  const [showCropper, setShowCropper] = useState(false)        // Visa bildbeskäraren
+  const [cropperImageSrc, setCropperImageSrc] = useState('')   // Bild för beskärning
+  const fileInputRef = useRef(null)                            // Referens till file input
   
-  // Selected post for viewing
-  const [selectedPost, setSelectedPost] = useState(null)
-  const [selectedPostChartData, setSelectedPostChartData] = useState([])
+  // ===== VALD POST FÖR VISNING =====
+  const [selectedPost, setSelectedPost] = useState(null)           // Vald post för detaljvy
+  const [selectedPostChartData, setSelectedPostChartData] = useState([]) // Grafdata för vald post
   const [isLoadingSelectedPost, setIsLoadingSelectedPost] = useState(false)
-  const selectedPostRef = useRef(null)
+  const selectedPostRef = useRef(null)                              // Referens för scroll
   
-  // Comments for selected post
-  const [comments, setComments] = useState([])
-  const [showComments, setShowComments] = useState(false)
+  // ===== KOMMENTAR-STATE =====
+  const [comments, setComments] = useState([])                 // Kommentarer på vald post
+  const [showComments, setShowComments] = useState(false)      // Visa kommentarer
   const [isLoadingComments, setIsLoadingComments] = useState(false)
-  const [commentText, setCommentText] = useState('')
+  const [commentText, setCommentText] = useState('')           // Text för ny kommentar
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
 
+  // ===== BERÄKNADE VÄRDEN =====
+  // Memoized userId för att undvika onödiga omberäkningar
   const userId = useMemo(() => getStoredUserId(), [])
 
-  // Fetch user's posts
+  // ==================== DATA HÄMTNING ====================
+
+  // ===== HÄMTA ANVÄNDARENS POSTER =====
   useEffect(() => {
     if (!userId) {
       setIsLoadingPosts(false)
       return
     }
 
-    let ignore = false
+    let ignore = false // Förhindra race conditions
     setIsLoadingPosts(true)
 
     fetchPosts({ limit: 50, userId })
@@ -104,7 +150,9 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [userId])
 
-  // Poll for unread comment updates
+  // ===== POLLING FÖR OLÄSTA KOMMENTARER =====
+  // Kontrollerar var 10:e sekund om det finns nya olästa kommentarer
+  // Uppdaterar endast räknaren, inte hela post-objektet
   useEffect(() => {
     if (!userId || isLoadingPosts) return
 
@@ -112,7 +160,7 @@ export default function PostBoard({ user, openPostCreator }) {
       try {
         const data = await fetchPosts({ limit: 50, userId })
         setPosts(prevPosts => {
-          // Update only unreadCommentCount to avoid disrupting UI
+          // Uppdatera endast unreadCommentCount för att undvika UI-störningar
           const updatedPosts = prevPosts.map(prevPost => {
             const newPost = data.items?.find(p => p._id === prevPost._id)
             if (newPost && newPost.unreadCommentCount !== prevPost.unreadCommentCount) {
@@ -127,7 +175,7 @@ export default function PostBoard({ user, openPostCreator }) {
       }
     }
 
-    // Poll every 10 seconds
+    // Polla var 10:e sekund
     const intervalId = setInterval(pollUnreadComments, 10000)
 
     return () => {
@@ -135,12 +183,18 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [userId, isLoadingPosts])
 
-  // Calculate date presets
+  // ==================== DATUMHANTERING ====================
+
+  /**
+   * Applicera ett datumpreset för graf-intervallet
+   * Beräknar från-datum baserat på valt preset (7d, 30d, 90d, etc.)
+   */
   const applyDatePreset = useCallback((preset) => {
     const now = new Date()
-    const to = now.toISOString().split('T')[0]
+    const to = now.toISOString().split('T')[0] // Dagens datum
     let from
     
+    // Beräkna startdatum baserat på preset
     switch (preset) {
       case '7d':
         from = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -155,7 +209,7 @@ export default function PostBoard({ user, openPostCreator }) {
         from = new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
         break
       case 'all':
-        from = '2020-01-01'
+        from = '2020-01-01' // Från början av appen
         break
       default:
         from = new Date(now - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
@@ -166,12 +220,12 @@ export default function PostBoard({ user, openPostCreator }) {
     setDatePreset(preset)
   }, [])
 
-  // Set default dates on mount
+  // Sätt standarddatum (30 dagar) vid montering
   useEffect(() => {
     applyDatePreset('30d')
   }, [applyDatePreset])
 
-  // Fetch user's exercises
+  // ===== HÄMTA ÖVNINGAR FÖR DROPDOWN =====
   useEffect(() => {
     if (!user || !isCreatingPost) {
       return
@@ -200,7 +254,8 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [user, isCreatingPost])
 
-  // Fetch available dates when exercise changes (for two days dropdown)
+  // ===== HÄMTA TILLGÄNGLIGA DATUM FÖR ÖVNING =====
+  // Används för två-dagars jämförelse-dropdown
   useEffect(() => {
     if (!selectedExerciseId) {
       setAvailableDates([])
@@ -213,13 +268,13 @@ export default function PostBoard({ user, openPostCreator }) {
       .then((data) => {
         if (ignore || !data.groups) return
         
-        // Extract unique dates from groups
+        // Extrahera unika datum från set-grupper
         const dates = data.groups.map(group => {
           const d = new Date(group.date)
           return d.toISOString().split('T')[0]
         })
         
-        // Sort newest first
+        // Sortera nyast först och ta bort dubletter
         const uniqueDates = [...new Set(dates)].sort((a, b) => new Date(b) - new Date(a))
         setAvailableDates(uniqueDates)
       })
@@ -232,9 +287,10 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [selectedExerciseId])
 
-  // Fetch preview data when exercise/metric/dateRange changes
+  // ===== HÄMTA FÖRHANDSVISNINGSDATA FÖR GRAF =====
+  // Uppdateras när övning, mätvärde eller datumintervall ändras
   useEffect(() => {
-    // Check if we have valid date inputs based on preset
+    // Kontrollera att vi har giltiga datum baserat på preset
     const hasTwoDaysInput = datePreset === 'twoDays' && compareDay1 && compareDay2
     const hasRangeInput = datePreset !== 'twoDays' && dateRangeFrom && dateRangeTo
 
@@ -353,7 +409,12 @@ export default function PostBoard({ user, openPostCreator }) {
     return parsed.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' })
   }, [])
 
-  // Handle image selection - show cropper
+  // ==================== BILDHANTERING ====================
+
+  /**
+   * Hantera bildval - validera och visa beskäraren
+   * Validerar filtyp (JPEG, PNG, WebP, GIF) och storlek (max 5MB)
+   */
   const handleImageSelect = useCallback((e) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -385,7 +446,10 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [])
 
-  // Handle crop complete
+  /**
+   * Hantera när bildbeskärning är klar
+   * Skapar en fil från den beskärda blob:en och visar förhandsvisning
+   */
   const handleCropComplete = useCallback((croppedBlob) => {
     // Create a File from the blob
     const croppedFile = new File([croppedBlob], 'cropped-image.jpg', { type: 'image/jpeg' })
@@ -401,14 +465,18 @@ export default function PostBoard({ user, openPostCreator }) {
     setShowCropper(false)
   }, [cropperImageSrc])
 
-  // Handle crop cancel
+  /**
+   * Hantera avbrytning av bildbeskärning
+   * Rensar upp resurser och stänger beskäraren
+   */
   const handleCropCancel = useCallback(() => {
     URL.revokeObjectURL(cropperImageSrc)
     setCropperImageSrc('')
     setShowCropper(false)
   }, [cropperImageSrc])
 
-  // Cleanup preview URL when component unmounts or image changes
+  // Rensa förhandsvisnings-URL vid unmount eller byte av bild
+  // Förhindrar minnesläckor från Object URLs
   useEffect(() => {
     return () => {
       if (imagePreviewUrl) {
@@ -417,6 +485,12 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [imagePreviewUrl])
 
+  // ==================== POSTHANTERING ====================
+
+  /**
+   * Skapa ny post (graf eller bild)
+   * Validerar input, laddar upp bild vid behov, och sparar till API
+   */
   const handleCreatePost = useCallback(async (e) => {
     e.preventDefault()
     setError('')
@@ -534,6 +608,10 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [postType, postTitle, postDescription, selectedExerciseId, selectedChartType, selectedMetric, dateRangeFrom, dateRangeTo, datePreset, compareDay1, compareDay2, applyDatePreset, selectedImage])
 
+  /**
+   * Avbryt skapande av post
+   * Återställer alla formulärfält till standardvärden
+   */
   const handleCancelPost = useCallback(() => {
     setPostTitle('')
     setPostDescription('')
@@ -553,7 +631,12 @@ export default function PostBoard({ user, openPostCreator }) {
     setIsCreatingPost(false)
   }, [applyDatePreset])
 
+  /**
+   * Ta bort en post
+   * Bekräftar med användaren innan borttagning
+   */
   const handleDeletePost = useCallback(async (postId) => {
+    // Visa bekräftelsedialog på svenska
     if (!confirm('Är du säker på att du vill ta bort denna post?')) return
 
     try {
@@ -570,8 +653,13 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [selectedPost])
 
+  /**
+   * Välj en post för detaljvisning
+   * Hämtar grafdata och visar post-förhandsvisning
+   * Klick på samma post stänger förhandsvisningen (toggle)
+   */
   const handleSelectPost = useCallback(async (post) => {
-    // Toggle off if same post is clicked
+    // Toggle av om samma post klickas igen
     if (selectedPost?._id === post._id) {
       setSelectedPost(null)
       setSelectedPostChartData([])
@@ -674,7 +762,7 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [selectedPost])
 
-  // Scroll to selected post preview
+  // Scrolla till vald post när den väljs
   useEffect(() => {
     if (selectedPost && selectedPostRef.current) {
       setTimeout(() => {
@@ -683,14 +771,15 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [selectedPost])
 
-  // Reset comments when selecting a different post
+  // Återställ kommentarer när en annan post väljs
   useEffect(() => {
     setComments([])
     setShowComments(false)
     setCommentText('')
   }, [selectedPost?._id])
 
-  // Poll for new comments when comments section is open
+  // ===== POLLING FÖR NYA KOMMENTARER =====
+  // När kommentarsektionen är öppen, polla var 5:e sekund
   useEffect(() => {
     if (!showComments || !selectedPost || isLoadingComments) return
 
@@ -734,7 +823,10 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [showComments, selectedPost, isLoadingComments])
 
-  // Toggle comments section
+  /**
+   * Visa/dölj kommentarsektionen
+   * Hämtar kommentarer och markerar dem som lästa
+   */
   const handleToggleComments = useCallback(async () => {
     if (!selectedPost) return
 
@@ -765,9 +857,13 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [selectedPost, showComments])
 
-  // Submit comment
+  /**
+   * Skicka en ny kommentar
+   * Uppdaterar lokal state och kommentarsräknare
+   */
   const handleSubmitComment = useCallback(async (e) => {
     e.preventDefault()
+    // Validera att kommentaren inte är tom och att vi har rätt tillstånd
     if (!commentText.trim() || isSubmittingComment || !selectedPost || !userId) return
 
     setIsSubmittingComment(true)
@@ -790,7 +886,10 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [selectedPost, commentText, isSubmittingComment, userId])
 
-  // Delete comment
+  /**
+   * Ta bort en kommentar
+   * Endast ägarens egna kommentarer kan tas bort
+   */
   const handleDeleteComment = useCallback(async (commentId) => {
     if (!selectedPost) return
 
@@ -810,6 +909,9 @@ export default function PostBoard({ user, openPostCreator }) {
     }
   }, [selectedPost])
 
+  // ==================== RENDERING ====================
+
+  // Visa meddelande om användaren inte är inloggad
   if (!user) {
     return (
       <section ref={postBoardRef} className="pass-menu" aria-label="Post">
