@@ -346,6 +346,11 @@
   transition: none;
 }
 
+.pass-tile--dialog-open {
+  z-index: 10000;
+  will-change: auto;
+}
+
 .workout-rename {
   display: flex;
   flex-direction: column;

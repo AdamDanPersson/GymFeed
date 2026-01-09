@@ -52,11 +52,13 @@ export function SortableWorkoutTile({ workout, formatWorkoutDate, onSelect, isSe
     '--pass-title-spacing': titleLetterSpacing
   }
 
+  const hasOpenDialog = isMenuOpen || showDeleteConfirm
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`pass-tile pass-tile--saved ${isSelected ? 'pass-tile--selected' : ''} ${isDragging ? 'pass-tile--dragging' : ''}`}
+      className={`pass-tile pass-tile--saved ${isSelected ? 'pass-tile--selected' : ''} ${isDragging ? 'pass-tile--dragging' : ''} ${hasOpenDialog ? 'pass-tile--dialog-open' : ''}`}
       role="button"
       tabIndex={0}
       onClick={() => onSelect?.(workout._id)}
