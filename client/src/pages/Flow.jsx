@@ -277,7 +277,7 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
         ) : chartData.length === 0 ? (
           <div className="feed-card__empty">Ingen data för valt intervall</div>
         ) : (
-          <ResponsiveContainer width="100%" height={240}>
+          <ResponsiveContainer width="100%" height="100%">
             {post.chartType === 'bar' ? (
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />

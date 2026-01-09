@@ -18,6 +18,92 @@
   height: var(--nav-expanded-height);
 }
 
+/* Mobile toggle button */
+.nav-toggle {
+  display: none;
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 100;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(34, 34, 34, 0.9);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 12px;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.nav-toggle:hover {
+  background: rgba(34, 34, 34, 1);
+  transform: scale(1.05);
+}
+
+.nav-toggle:active {
+  transform: scale(0.95);
+}
+
+.nav-toggle__bar {
+  display: block;
+  width: 24px;
+  height: 3px;
+  background: #f5e7c6;
+  border-radius: 2px;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+/* Hamburger to X animation */
+.nav-toggle--open .nav-toggle__bar:nth-child(1) {
+  transform: translateY(8px) rotate(45deg);
+}
+
+.nav-toggle--open .nav-toggle__bar:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.nav-toggle--open .nav-toggle__bar:nth-child(3) {
+  transform: translateY(-8px) rotate(-45deg);
+}
+
+/* Mobile styles */
+@media (max-width: 600px) {
+  .nav-toggle {
+    display: flex;
+  }
+  
+  .global-nav {
+    height: 0;
+    flex-direction: column;
+  }
+  
+  .global-nav:hover {
+    height: 0;
+  }
+  
+  .global-nav--open {
+    height: auto;
+  }
+  
+  .global-nav--open .nav-link {
+    padding: 1.5rem 0;
+  }
+  
+  .global-nav--open .nav-link img {
+    opacity: 1;
+    transform: translateY(0);
+    width: 48px;
+  }
+}
+
 .nav-link {
   flex: 1;
   display: flex;
@@ -49,23 +135,28 @@
   background: #222222;
 }
 
-.nav-link::after {
-  content: '';
-  position: absolute;
-  inset: 0.5rem;
-  border-radius: 1rem;
-}
-
 .nav-link:hover {
   transform: translateY(-4px);
 }
 
+/* Active indicator dot */
 .nav-link.is-active::after {
-  border-color: rgba(255, 255, 255, 0.45);
+  content: '';
+  position: absolute;
+  bottom: 0.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.nav-link--flow.is-active::after {
+  background: rgba(255, 255, 255, 0.7);
 }
 
 .nav-link--stats.is-active::after {
-  border-color: rgba(245, 231, 198, 0.6);
+  background: rgba(245, 231, 198, 0.7);
 }
 
 .sr-only {
