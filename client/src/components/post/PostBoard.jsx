@@ -13,6 +13,8 @@ import {
   getStoredUserId,
   markCommentsAsRead
 } from '../../lib/apiClient'
+import { uploadPostImage } from '../../lib/firebase'
+import ImageCropper from '../ImageCropper'
 
 export default function PostBoard({ user, openPostCreator }) {
   const [posts, setPosts] = useState([])
@@ -48,6 +50,14 @@ export default function PostBoard({ user, openPostCreator }) {
   const [previewData, setPreviewData] = useState([])
   const [isLoadingPreview, setIsLoadingPreview] = useState(false)
   const [availableDates, setAvailableDates] = useState([])
+  
+  // Image post state
+  const [selectedImage, setSelectedImage] = useState(null)
+  const [imagePreviewUrl, setImagePreviewUrl] = useState('')
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [showCropper, setShowCropper] = useState(false)
+  const [cropperImageSrc, setCropperImageSrc] = useState('')
+  const fileInputRef = useRef(null)
   
   // Selected post for viewing
   const [selectedPost, setSelectedPost] = useState(null)
@@ -343,6 +353,70 @@ export default function PostBoard({ user, openPostCreator }) {
     return parsed.toLocaleDateString('sv-SE', { year: 'numeric', month: 'short', day: 'numeric' })
   }, [])
 
+  // Handle image selection - show cropper
+  const handleImageSelect = useCallback((e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    if (!validTypes.includes(file.type)) {
+      setError('Ogiltig filtyp. Endast JPEG, PNG, WebP och GIF tillåts.')
+      return
+    }
+
+    // Validate file size (max 5MB)
+    const maxSize = 5 * 1024 * 1024
+    if (file.size > maxSize) {
+      setError('Bilden är för stor. Max 5MB.')
+      return
+    }
+
+    setError('')
+    
+    // Create preview URL and show cropper
+    const previewUrl = URL.createObjectURL(file)
+    setCropperImageSrc(previewUrl)
+    setShowCropper(true)
+    
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }, [])
+
+  // Handle crop complete
+  const handleCropComplete = useCallback((croppedBlob) => {
+    // Create a File from the blob
+    const croppedFile = new File([croppedBlob], 'cropped-image.jpg', { type: 'image/jpeg' })
+    setSelectedImage(croppedFile)
+    
+    // Create preview URL from the cropped blob
+    const previewUrl = URL.createObjectURL(croppedBlob)
+    setImagePreviewUrl(previewUrl)
+    
+    // Cleanup cropper state
+    URL.revokeObjectURL(cropperImageSrc)
+    setCropperImageSrc('')
+    setShowCropper(false)
+  }, [cropperImageSrc])
+
+  // Handle crop cancel
+  const handleCropCancel = useCallback(() => {
+    URL.revokeObjectURL(cropperImageSrc)
+    setCropperImageSrc('')
+    setShowCropper(false)
+  }, [cropperImageSrc])
+
+  // Cleanup preview URL when component unmounts or image changes
+  useEffect(() => {
+    return () => {
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl)
+      }
+    }
+  }, [imagePreviewUrl])
+
   const handleCreatePost = useCallback(async (e) => {
     e.preventDefault()
     setError('')
@@ -352,20 +426,29 @@ export default function PostBoard({ user, openPostCreator }) {
       setError('Titel krävs')
       return
     }
-    if (!selectedExerciseId) {
-      setError('Välj en övning')
-      return
-    }
 
-    // Validate date inputs based on preset
-    if (datePreset === 'twoDays') {
-      if (!compareDay1 || !compareDay2) {
-        setError('Välj båda dagarna')
+    // Type-specific validation
+    if (postType === 'graph') {
+      if (!selectedExerciseId) {
+        setError('Välj en övning')
         return
       }
-    } else {
-      if (!dateRangeFrom || !dateRangeTo) {
-        setError('Välj datumintervall')
+
+      // Validate date inputs based on preset
+      if (datePreset === 'twoDays') {
+        if (!compareDay1 || !compareDay2) {
+          setError('Välj båda dagarna')
+          return
+        }
+      } else {
+        if (!dateRangeFrom || !dateRangeTo) {
+          setError('Välj datumintervall')
+          return
+        }
+      }
+    } else if (postType === 'image') {
+      if (!selectedImage) {
+        setError('Välj en bild att ladda upp')
         return
       }
     }
@@ -373,34 +456,51 @@ export default function PostBoard({ user, openPostCreator }) {
     setIsSavingPost(true)
 
     try {
-      // Build post payload
-      const postPayload = {
-        type: 'graph',
-        title: postTitle.trim(),
-        description: postDescription.trim(),
-        exerciseId: selectedExerciseId,
-        chartType: selectedChartType,
-        metric: selectedMetric,
-      }
+      let postPayload
 
-      if (datePreset === 'twoDays') {
-        // Store specific dates for two-day comparison
-        postPayload.dateMode = 'twoDays'
-        postPayload.specificDates = [compareDay1, compareDay2]
-        // Also store dateRange for backwards compatibility
-        const day1 = new Date(compareDay1)
-        const day2 = new Date(compareDay2)
-        const fromDate = day1 < day2 ? day1 : day2
-        const toDate = day1 < day2 ? day2 : day1
-        postPayload.dateRange = {
-          from: fromDate.toISOString(),
-          to: toDate.toISOString()
+      if (postType === 'graph') {
+        // Build graph post payload
+        postPayload = {
+          type: 'graph',
+          title: postTitle.trim(),
+          description: postDescription.trim(),
+          exerciseId: selectedExerciseId,
+          chartType: selectedChartType,
+          metric: selectedMetric,
         }
-      } else {
-        postPayload.dateMode = 'range'
-        postPayload.dateRange = {
-          from: new Date(dateRangeFrom).toISOString(),
-          to: new Date(dateRangeTo).toISOString()
+
+        if (datePreset === 'twoDays') {
+          // Store specific dates for two-day comparison
+          postPayload.dateMode = 'twoDays'
+          postPayload.specificDates = [compareDay1, compareDay2]
+          // Also store dateRange for backwards compatibility
+          const day1 = new Date(compareDay1)
+          const day2 = new Date(compareDay2)
+          const fromDate = day1 < day2 ? day1 : day2
+          const toDate = day1 < day2 ? day2 : day1
+          postPayload.dateRange = {
+            from: fromDate.toISOString(),
+            to: toDate.toISOString()
+          }
+        } else {
+          postPayload.dateMode = 'range'
+          postPayload.dateRange = {
+            from: new Date(dateRangeFrom).toISOString(),
+            to: new Date(dateRangeTo).toISOString()
+          }
+        }
+      } else if (postType === 'image') {
+        // Upload image to Firebase
+        setIsUploadingImage(true)
+        const imageUrl = await uploadPostImage(selectedImage)
+        setIsUploadingImage(false)
+
+        // Build image post payload
+        postPayload = {
+          type: 'image',
+          title: postTitle.trim(),
+          description: postDescription.trim(),
+          imageUrl: imageUrl,
         }
       }
 
@@ -418,15 +518,21 @@ export default function PostBoard({ user, openPostCreator }) {
       setSelectedChartType('bar')
       setSelectedMetric('maxWeight')
       applyDatePreset('30d')
+      setSelectedImage(null)
+      setImagePreviewUrl('')
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
       setIsCreatingPost(false)
       
     } catch (err) {
       console.error('Failed to create post:', err)
       setError(err.message || 'Något gick fel')
+      setIsUploadingImage(false)
     } finally {
       setIsSavingPost(false)
     }
-  }, [postTitle, postDescription, selectedExerciseId, selectedChartType, selectedMetric, dateRangeFrom, dateRangeTo, datePreset, compareDay1, compareDay2, applyDatePreset])
+  }, [postType, postTitle, postDescription, selectedExerciseId, selectedChartType, selectedMetric, dateRangeFrom, dateRangeTo, datePreset, compareDay1, compareDay2, applyDatePreset, selectedImage])
 
   const handleCancelPost = useCallback(() => {
     setPostTitle('')
@@ -439,6 +545,11 @@ export default function PostBoard({ user, openPostCreator }) {
     setCompareDay1('')
     setCompareDay2('')
     setError('')
+    setSelectedImage(null)
+    setImagePreviewUrl('')
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
     setIsCreatingPost(false)
   }, [applyDatePreset])
 
@@ -710,6 +821,16 @@ export default function PostBoard({ user, openPostCreator }) {
 
   return (
     <section ref={postBoardRef} className="pass-menu" aria-label="Post">
+      {/* Image Cropper Modal */}
+      {showCropper && cropperImageSrc && (
+        <ImageCropper
+          imageSrc={cropperImageSrc}
+          onCropComplete={handleCropComplete}
+          onCancel={handleCropCancel}
+          outputSize={400}
+        />
+      )}
+      
       <h2>Post</h2>
       <div className="pass-menu__board pass-menu__board--post">
         {isLoadingPosts ? (
@@ -722,9 +843,16 @@ export default function PostBoard({ user, openPostCreator }) {
         {posts.map((post) => (
           <div
             key={post._id}
-            className={`pass-tile pass-tile--saved pass-tile--post ${selectedPost?._id === post._id ? 'pass-tile--selected' : ''}`}
+            className={`pass-tile pass-tile--saved pass-tile--post ${post.type === 'image' ? 'pass-tile--image' : ''} ${selectedPost?._id === post._id ? 'pass-tile--selected' : ''}`}
             onClick={() => handleSelectPost(post)}
-            style={{ cursor: 'pointer' }}
+            style={{ 
+              cursor: 'pointer',
+              ...(post.type === 'image' && post.imageUrl ? {
+                backgroundImage: `url(${post.imageUrl})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              } : {})
+            }}
           >
             {post.unreadCommentCount > 0 && (
               <div className="pass-tile__unread-badge" title={`${post.unreadCommentCount} olästa kommentarer`}>
@@ -735,7 +863,9 @@ export default function PostBoard({ user, openPostCreator }) {
             )}
             <div className="pass-tile__content">
               <h3>{post.title}</h3>
-              <span className="pass-tile__exercise">{post.exerciseName}</span>
+              {post.type === 'graph' && (
+                <span className="pass-tile__exercise">{post.exerciseName}</span>
+              )}
               <div className="pass-tile__meta">
                 <time dateTime={post.createdAt}>
                   {formatPostDate(post.createdAt)}
@@ -803,80 +933,94 @@ export default function PostBoard({ user, openPostCreator }) {
               ✕
             </button>
           </div>
-          <span className="post-preview__exercise">{selectedPost.exerciseName}</span>
           
-          {isLoadingSelectedPost ? (
-            <div className="post-preview__loading">Laddar graf...</div>
-          ) : selectedPostChartData.length > 0 ? (
-            <div className="post-preview__chart">
-              <ResponsiveContainer width="100%" height={250}>
-                {selectedPost.chartType === 'line' ? (
-                  <LineChart data={selectedPostChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#3a3a3a" />
-                    <XAxis 
-                      dataKey="date" 
-                      stroke="#999"
-                      tick={{ fill: '#999', fontSize: 11 }}
-                    />
-                    <YAxis 
-                      stroke="#999"
-                      tick={{ fill: '#999', fontSize: 11 }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#2a2a2a', 
-                        border: '1px solid #3a3a3a',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#f5a623" 
-                      strokeWidth={2}
-                      dot={{ fill: '#f5a623', strokeWidth: 2 }}
-                      name={selectedPost.metric === 'maxWeight' ? 'Max Vikt (kg)' : 
-                            selectedPost.metric === 'totalVolume' ? 'Volym (kg)' : 
-                            selectedPost.metric === 'totalReps' ? 'Reps' : 'Värde'}
-                    />
-                  </LineChart>
-                ) : (
-                  <BarChart data={selectedPostChartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#3a3a3a" />
-                    <XAxis 
-                      dataKey="date" 
-                      stroke="#999"
-                      tick={{ fill: '#999', fontSize: 11 }}
-                    />
-                    <YAxis 
-                      stroke="#999"
-                      tick={{ fill: '#999', fontSize: 11 }}
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#2a2a2a', 
-                        border: '1px solid #3a3a3a',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Bar 
-                      dataKey="value" 
-                      fill="#f5a623"
-                      radius={[4, 4, 0, 0]}
-                      name={selectedPost.metric === 'maxWeight' ? 'Max Vikt (kg)' : 
-                            selectedPost.metric === 'totalVolume' ? 'Volym (kg)' : 
-                            selectedPost.metric === 'totalReps' ? 'Reps' : 'Värde'}
-                    />
-                  </BarChart>
-                )}
-              </ResponsiveContainer>
-            </div>
+          {selectedPost.type === 'image' ? (
+            <>
+              <div className="post-preview__image">
+                <img src={selectedPost.imageUrl} alt={selectedPost.title} />
+              </div>
+              {selectedPost.description && (
+                <p className="post-preview__description">{selectedPost.description}</p>
+              )}
+            </>
           ) : (
-            <div className="post-preview__no-data">Ingen data tillgänglig</div>
-          )}
+            <>
+              <span className="post-preview__exercise">{selectedPost.exerciseName}</span>
+              
+              {isLoadingSelectedPost ? (
+                <div className="post-preview__loading">Laddar graf...</div>
+              ) : selectedPostChartData.length > 0 ? (
+                <div className="post-preview__chart">
+                  <ResponsiveContainer width="100%" height={250}>
+                    {selectedPost.chartType === 'line' ? (
+                      <LineChart data={selectedPostChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#3a3a3a" />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#999"
+                          tick={{ fill: '#999', fontSize: 11 }}
+                        />
+                        <YAxis 
+                          stroke="#999"
+                          tick={{ fill: '#999', fontSize: 11 }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#2a2a2a', 
+                            border: '1px solid #3a3a3a',
+                            borderRadius: '8px'
+                          }}
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="value" 
+                          stroke="#f5a623" 
+                          strokeWidth={2}
+                          dot={{ fill: '#f5a623', strokeWidth: 2 }}
+                          name={selectedPost.metric === 'maxWeight' ? 'Max Vikt (kg)' : 
+                                selectedPost.metric === 'totalVolume' ? 'Volym (kg)' : 
+                                selectedPost.metric === 'totalReps' ? 'Reps' : 'Värde'}
+                        />
+                      </LineChart>
+                    ) : (
+                      <BarChart data={selectedPostChartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#3a3a3a" />
+                        <XAxis 
+                          dataKey="date" 
+                          stroke="#999"
+                          tick={{ fill: '#999', fontSize: 11 }}
+                        />
+                        <YAxis 
+                          stroke="#999"
+                          tick={{ fill: '#999', fontSize: 11 }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#2a2a2a', 
+                            border: '1px solid #3a3a3a',
+                            borderRadius: '8px'
+                          }}
+                        />
+                        <Bar 
+                          dataKey="value" 
+                          fill="#f5a623"
+                          radius={[4, 4, 0, 0]}
+                          name={selectedPost.metric === 'maxWeight' ? 'Max Vikt (kg)' : 
+                                selectedPost.metric === 'totalVolume' ? 'Volym (kg)' : 
+                                selectedPost.metric === 'totalReps' ? 'Reps' : 'Värde'}
+                        />
+                      </BarChart>
+                    )}
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="post-preview__no-data">Ingen data tillgänglig</div>
+              )}
 
-          {selectedPost.description && (
-            <p className="post-preview__description">{selectedPost.description}</p>
+              {selectedPost.description && (
+                <p className="post-preview__description">{selectedPost.description}</p>
+              )}
+            </>
           )}
 
           <div className="post-preview__meta">
@@ -1282,14 +1426,33 @@ export default function PostBoard({ user, openPostCreator }) {
               </>
             ) : (
               <>
+                {error && (
+                  <div className="post-creator__error">
+                    {error}
+                  </div>
+                )}
+
                 <div className="post-creator__section">
                   <label className="post-creator__label">
                     <span>Ladda upp bild</span>
-                    <input
-                      type="file"
-                      className="post-creator__file-input"
-                      accept="image/*"
-                    />
+                    <div className="post-creator__file-wrapper">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="post-creator__file-input"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        onChange={handleImageSelect}
+                      />
+                      <div className="post-creator__file-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                          <polyline points="17 8 12 3 7 8"/>
+                          <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        {selectedImage ? selectedImage.name : 'Välj bild...'}
+                      </div>
+                    </div>
+                    <span className="post-creator__file-hint">Max 5MB. JPEG, PNG, WebP eller GIF.</span>
                   </label>
                 </div>
 
@@ -1298,6 +1461,8 @@ export default function PostBoard({ user, openPostCreator }) {
                     <span>Beskrivning (valfritt)</span>
                     <textarea
                       className="post-creator__textarea"
+                      value={postDescription}
+                      onChange={(e) => setPostDescription(e.target.value)}
                       placeholder="Skriv en kort beskrivning..."
                       rows={4}
                       maxLength={500}
@@ -1307,15 +1472,19 @@ export default function PostBoard({ user, openPostCreator }) {
 
                 <div className="post-creator__preview">
                   <p className="post-creator__preview-label">Förhandsvisning</p>
-                  <div className="post-creator__preview-chart">
-                    <div className="post-creator__preview-placeholder">
-                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                        <circle cx="8.5" cy="8.5" r="1.5"/>
-                        <polyline points="21 15 16 10 5 21"/>
-                      </svg>
-                      <span>Bild kommer visas här</span>
-                    </div>
+                  <div className="post-creator__preview-image">
+                    {imagePreviewUrl ? (
+                      <img src={imagePreviewUrl} alt="Förhandsvisning" />
+                    ) : (
+                      <div className="post-creator__preview-placeholder">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                          <circle cx="8.5" cy="8.5" r="1.5"/>
+                          <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                        <span>Välj en bild för att se förhandsvisning</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </>
@@ -1326,16 +1495,16 @@ export default function PostBoard({ user, openPostCreator }) {
                 type="button" 
                 className="post-creator__cancel"
                 onClick={handleCancelPost}
-                disabled={isSavingPost}
+                disabled={isSavingPost || isUploadingImage}
               >
                 Avbryt
               </button>
               <button 
                 type="submit" 
                 className="post-creator__submit"
-                disabled={!postTitle.trim() || isSavingPost}
+                disabled={!postTitle.trim() || isSavingPost || isUploadingImage || (postType === 'image' && !selectedImage)}
               >
-                {isSavingPost ? 'Postar...' : 'Posta till Flow'}
+                {isUploadingImage ? 'Laddar upp...' : isSavingPost ? 'Postar...' : 'Posta till Flow'}
               </button>
             </div>
           </form>

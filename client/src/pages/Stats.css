@@ -1522,7 +1522,19 @@
   border-color: rgba(245, 231, 198, 0.5);
 }
 
+.post-creator__file-wrapper {
+  position: relative;
+}
+
 .post-creator__file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.post-creator__file-btn {
   background: rgba(0, 0, 0, 0.3);
   border: 2px dashed rgba(245, 231, 198, 0.25);
   border-radius: 0.75rem;
@@ -1530,11 +1542,42 @@
   color: rgba(245, 231, 198, 0.7);
   font-size: 0.95rem;
   cursor: pointer;
-  transition: border-color 0.2s ease;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  text-align: center;
+  word-break: break-all;
 }
 
-.post-creator__file-input:hover {
+.post-creator__file-wrapper:hover .post-creator__file-btn {
   border-color: rgba(245, 231, 198, 0.4);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.post-creator__file-hint {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: rgba(245, 231, 198, 0.5);
+}
+
+.post-creator__preview-image {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 0.75rem;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.post-creator__preview-image img {
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  border-radius: 0.5rem;
 }
 
 .post-creator__select {
@@ -1729,6 +1772,54 @@
   position: relative;
 }
 
+/* Image post tiles */
+.pass-tile--image {
+  position: relative;
+  overflow: hidden;
+}
+
+.pass-tile--image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.85) 0%,
+    rgba(0, 0, 0, 0.4) 50%,
+    rgba(0, 0, 0, 0.1) 100%
+  );
+  z-index: 1;
+  border-radius: inherit;
+}
+
+.pass-tile--image .pass-tile__content {
+  position: relative;
+  z-index: 2;
+}
+
+.pass-tile--image .pass-tile__content h3,
+.pass-tile--image .pass-tile__exercise,
+.pass-tile--image .pass-tile__meta,
+.pass-tile--image .pass-tile__meta time,
+.pass-tile--image .pass-tile__stats,
+.pass-tile--image .pass-tile__stat {
+  color: #fff !important;
+}
+
+.pass-tile--image .pass-tile__actions {
+  position: relative;
+  z-index: 2;
+}
+
+.pass-tile--image .pass-tile__delete-btn {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.pass-tile--image .pass-tile__delete-btn:hover {
+  background: rgba(220, 38, 38, 0.3);
+  color: #fff;
+}
+
 .pass-tile__unread-badge {
   position: absolute;
   top: 0.5rem;
@@ -1791,6 +1882,24 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+.pass-tile__image-preview {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 0.5rem;
+  flex-shrink: 0;
+  border: 1px solid rgba(245, 231, 198, 0.2);
+}
+
+.pass-tile__type-badge {
+  font-size: 0.7rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  font-weight: 500;
 }
 
 .pass-tile__delete-btn {
@@ -1883,6 +1992,20 @@
   border-radius: 0.75rem;
   padding: 1rem;
   margin-bottom: 1rem;
+}
+
+.post-preview__image {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.post-preview__image img {
+  max-width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  border-radius: 0.75rem;
 }
 
 .post-preview__loading,

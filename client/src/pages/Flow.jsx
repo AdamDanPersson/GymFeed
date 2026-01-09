@@ -115,9 +115,10 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
       .catch(() => {}) // Silently fail
   }, [post._id, isLoggedIn])
 
-  // Fetch chart data for post (uses public endpoint)
+  // Fetch chart data for post (uses public endpoint) - only for graph posts
   useEffect(() => {
-    if (!post._id) return
+    // Skip fetching chart data for image posts
+    if (!post._id || post.type === 'image') return
 
     let ignore = false
     setIsLoadingChart(true)
@@ -141,7 +142,7 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
     return () => {
       ignore = true
     }
-  }, [post._id, post.metric, post.dateRange, post.dateMode, post.specificDates])
+  }, [post._id, post.type, post.metric, post.dateRange, post.dateMode, post.specificDates])
 
   const handleDelete = useCallback(async () => {
     if (!confirm('Är du säker på att du vill ta bort denna post?')) return
@@ -252,16 +253,26 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
           <span className="meta-line meta-line--bold">{post.authorName}</span>
           <span className="meta-line meta-line--light">{formattedDate}</span>
         </div>
-        <span className="tag-chip">{METRIC_LABELS[post.metric] || post.metric}</span>
+        {post.type !== 'image' && (
+          <span className="tag-chip">{METRIC_LABELS[post.metric] || post.metric}</span>
+        )}
       </header>
 
       <div className="feed-card__title">
         <h3>{post.title}</h3>
-        <span className="feed-card__exercise">{post.exerciseName}</span>
+        {post.type !== 'image' && (
+          <span className="feed-card__exercise">{post.exerciseName}</span>
+        )}
       </div>
 
-      <div className="feed-card__body">
-        {isLoadingChart ? (
+      <div className={`feed-card__body ${post.type === 'image' ? 'feed-card__body--image' : ''}`}>
+        {post.type === 'image' ? (
+          <img 
+            src={post.imageUrl} 
+            alt={post.title} 
+            className="feed-card__image"
+          />
+        ) : isLoadingChart ? (
           <div className="feed-card__loading">Laddar graf...</div>
         ) : chartData.length === 0 ? (
           <div className="feed-card__empty">Ingen data för valt intervall</div>

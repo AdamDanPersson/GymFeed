@@ -1067,13 +1067,13 @@ app.get('/exercises', requireUser, async (req, res) => {
   }
 })
 
-// POST /posts - Create a new graph post
+// POST /posts - Create a new post (graph or image)
 app.post('/posts', requireUser, async (req, res) => {
-  const { type, title, description, exerciseId, chartType, metric, dateRange, dateMode, specificDates } = req.body
+  const { type, title, description, exerciseId, chartType, metric, dateRange, dateMode, specificDates, imageUrl } = req.body
 
   // Validate type
-  if (type !== 'graph') {
-    return res.status(400).json({ message: 'Only graph posts are supported' })
+  if (type !== 'graph' && type !== 'image') {
+    return res.status(400).json({ message: 'Type must be either "graph" or "image"' })
   }
 
   // Validate title
@@ -1085,38 +1085,78 @@ app.post('/posts', requireUser, async (req, res) => {
     return res.status(400).json({ message: 'Title must be 80 characters or less' })
   }
 
-  // Validate exerciseId
-  if (!exerciseId || !ObjectId.isValid(exerciseId)) {
-    return res.status(400).json({ message: 'Valid exerciseId is required' })
-  }
-
-  // Validate chartType
-  if (!VALID_CHART_TYPES.includes(chartType)) {
-    return res.status(400).json({ message: `chartType must be one of: ${VALID_CHART_TYPES.join(', ')}` })
-  }
-
-  // Validate metric
-  if (!VALID_METRICS.includes(metric)) {
-    return res.status(400).json({ message: `metric must be one of: ${VALID_METRICS.join(', ')}` })
-  }
-
-  // Validate dateRange
-  if (!dateRange || !dateRange.from || !dateRange.to) {
-    return res.status(400).json({ message: 'dateRange with from and to is required' })
-  }
-
-  const fromDate = new Date(dateRange.from)
-  const toDate = new Date(dateRange.to)
-
-  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
-    return res.status(400).json({ message: 'Invalid date format in dateRange' })
-  }
-
-  if (fromDate > toDate) {
-    return res.status(400).json({ message: 'dateRange.from must be before dateRange.to' })
-  }
+  // Get user info for author name
+  const user = await usersCollection.findOne({ _id: req.userId })
+  const authorName = user?.fullName || user?.firstName || 'Okänd'
+  const now = new Date()
 
   try {
+    // Handle image post
+    if (type === 'image') {
+      if (!imageUrl || typeof imageUrl !== 'string') {
+        return res.status(400).json({ message: 'imageUrl is required for image posts' })
+      }
+
+      const postDoc = {
+        userId: req.userId,
+        type: 'image',
+        title: trimmedTitle,
+        description: typeof description === 'string' ? description.trim() : '',
+        imageUrl,
+        authorName,
+        createdAt: now,
+        likeCount: 0,
+        commentCount: 0
+      }
+
+      const result = await postsCollection.insertOne(postDoc)
+
+      return res.status(201).json({
+        _id: result.insertedId.toString(),
+        userId: postDoc.userId.toString(),
+        type: postDoc.type,
+        title: postDoc.title,
+        description: postDoc.description,
+        imageUrl: postDoc.imageUrl,
+        authorName: postDoc.authorName,
+        createdAt: postDoc.createdAt,
+        likeCount: postDoc.likeCount,
+        commentCount: postDoc.commentCount
+      })
+    }
+
+    // Handle graph post
+    // Validate exerciseId
+    if (!exerciseId || !ObjectId.isValid(exerciseId)) {
+      return res.status(400).json({ message: 'Valid exerciseId is required' })
+    }
+
+    // Validate chartType
+    if (!VALID_CHART_TYPES.includes(chartType)) {
+      return res.status(400).json({ message: `chartType must be one of: ${VALID_CHART_TYPES.join(', ')}` })
+    }
+
+    // Validate metric
+    if (!VALID_METRICS.includes(metric)) {
+      return res.status(400).json({ message: `metric must be one of: ${VALID_METRICS.join(', ')}` })
+    }
+
+    // Validate dateRange
+    if (!dateRange || !dateRange.from || !dateRange.to) {
+      return res.status(400).json({ message: 'dateRange with from and to is required' })
+    }
+
+    const fromDate = new Date(dateRange.from)
+    const toDate = new Date(dateRange.to)
+
+    if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+      return res.status(400).json({ message: 'Invalid date format in dateRange' })
+    }
+
+    if (fromDate > toDate) {
+      return res.status(400).json({ message: 'dateRange.from must be before dateRange.to' })
+    }
+
     // Verify exercise belongs to user
     const exercise = await exercisesCollection.findOne({
       _id: new ObjectId(exerciseId),
@@ -1127,11 +1167,6 @@ app.post('/posts', requireUser, async (req, res) => {
       return res.status(404).json({ message: 'Exercise not found or does not belong to you' })
     }
 
-    // Get user info for author name
-    const user = await usersCollection.findOne({ _id: req.userId })
-    const authorName = user?.fullName || user?.firstName || 'Okänd'
-
-    const now = new Date()
     const postDoc = {
       userId: req.userId,
       type: 'graph',
@@ -1240,11 +1275,12 @@ app.get('/posts', async (req, res) => {
       items: items.map((post) => ({
         _id: post._id.toString(),
         userId: post.userId.toString(),
-        type: post.type,
+        type: post.type || 'graph',
         title: post.title,
         description: post.description,
-        exerciseId: post.exerciseId.toString(),
+        exerciseId: post.exerciseId?.toString(),
         exerciseName: post.exerciseName,
+        imageUrl: post.imageUrl,
         authorName: post.authorName,
         chartType: post.chartType,
         metric: post.metric,
@@ -1368,6 +1404,11 @@ app.get('/posts/:postId/chart-data', async (req, res) => {
     const post = await postsCollection.findOne({ _id: new ObjectId(postId) })
     if (!post) {
       return res.status(404).json({ message: 'Post not found' })
+    }
+
+    // Image posts don't have chart data
+    if (post.type === 'image' || !post.exerciseId) {
+      return res.status(400).json({ message: 'This post does not have chart data' })
     }
 
     // Get all sets for this exercise (belonging to the post creator)
