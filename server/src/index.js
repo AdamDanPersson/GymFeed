@@ -8,13 +8,38 @@ dotenv.config()
 const PORT = process.env.PORT || 3000
 const DB_NAME = process.env.DB_NAME || 'GymFeed'
 const MONGODB_URI = process.env.MONGODB_URI
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173'
 
 if (!MONGODB_URI) {
   throw new Error('Missing MONGODB_URI in environment variables')
 }
 
 const app = express()
-app.use(cors())
+
+// CORS configuration for production
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true)
+    
+    const allowedOrigins = [
+      FRONTEND_URL,
+      'http://localhost:5173',
+      'http://localhost:4173'
+    ]
+    
+    if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/\/$/, '')))) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}
+
+app.use(cors(corsOptions))
 app.use(express.json())
 
 let usersCollection
@@ -1741,7 +1766,10 @@ async function start() {
     await postUnreadCommentsCollection.createIndex({ userId: 1 })
 
     app.listen(PORT, () => {
-      console.log(`API listening on http://localhost:${PORT}`)
+      console.log(`✅ API listening on port ${PORT}`)
+      console.log(`📊 Database: ${DB_NAME}`)
+      console.log(`🌐 CORS enabled for: ${FRONTEND_URL}`)
+      console.log(`🚀 Environment: ${process.env.NODE_ENV || 'development'}`)
     })
   } catch (error) {
     console.error('Failed to connect to MongoDB', error)
