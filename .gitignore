@@ -3,10 +3,17 @@ server/node_modules/
 client/node_modules/
 
 # Environment variables
+.env
 server/.env
 client/.env
 client/.env.local
 client/.env.production
+client/.env.example
+
+# Documentation (local only)
+DEPLOYMENT.md
+DEPLOYMENT_CHECKLIST.md
+README.md
 
 # Build outputs
 client/dist/
