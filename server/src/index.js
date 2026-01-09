@@ -1002,7 +1002,7 @@ app.get('/stats/monthly-visits', requireUser, async (req, res) => {
     const now = new Date()
     const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1) // Start of month 12 months ago
     
-    // Get all unique groupIds (each groupId = one gym session) within date range
+    // Get all sets within date range
     const sets = await setsCollection
       .find({ 
         userId: req.userId,
@@ -1010,16 +1010,19 @@ app.get('/stats/monthly-visits', requireUser, async (req, res) => {
       })
       .toArray()
     
-    // Group by month and count unique groupIds (sessions)
+    // Group by month and count unique dates (days with logged exercises)
     const monthlyVisits = {}
-    const seenGroups = new Set()
+    const seenDates = new Set()
     
     for (const set of sets) {
-      // Only count each groupId once (one gym visit)
-      if (seenGroups.has(set.groupId)) continue
-      seenGroups.add(set.groupId)
-      
       const date = new Date(set.date)
+      // Create unique key for this day (YYYY-MM-DD)
+      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+      
+      // Only count each day once
+      if (seenDates.has(dateKey)) continue
+      seenDates.add(dateKey)
+      
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
       monthlyVisits[monthKey] = (monthlyVisits[monthKey] || 0) + 1
     }
