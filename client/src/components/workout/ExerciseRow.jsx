@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -80,6 +80,7 @@ export function ExerciseRow({
   onEditRepsChange,
   onEditDropsetChange,
   onSaveSets,
+  onLoadLatestSets,
   isSavingSets,
   saveSuccess,
   saveError,
@@ -94,6 +95,7 @@ export function ExerciseRow({
   setNodeRef
 }) {
   const menuButtonRef = useRef(null)
+  const [showLoadConfirm, setShowLoadConfirm] = useState(false)
 
   // Process history data for chart - supports multiple metrics
   const chartData = useMemo(() => {
@@ -351,6 +353,45 @@ export function ExerciseRow({
                       </div>
                     ))}
                   </div>
+                  {showLoadConfirm ? (
+                    <div className="exercise-history__confirm">
+                      <p className="exercise-history__confirm-message">Är du säker? Setten tas bort från historiken.</p>
+                      <div className="exercise-history__confirm-actions">
+                        <button
+                          type="button"
+                          className="exercise-history__confirm-btn exercise-history__confirm-btn--primary"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowLoadConfirm(false)
+                            onLoadLatestSets?.()
+                          }}
+                        >
+                          Ja
+                        </button>
+                        <button
+                          type="button"
+                          className="exercise-history__confirm-btn exercise-history__confirm-btn--secondary"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setShowLoadConfirm(false)
+                          }}
+                        >
+                          Avbryt
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="exercise-history__load-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowLoadConfirm(true)
+                      }}
+                    >
+                      Redigera senaste
+                    </button>
+                  )}
                 </>
               ) : (
                 <p className="exercise-history__empty">Inga tidigare sets</p>

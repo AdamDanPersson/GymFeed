@@ -16,7 +16,8 @@ import {
   reorderWorkouts,
   renameWorkoutExercise,
   saveSetsBulk,
-  getExerciseSets
+  getExerciseSets,
+  deleteSet
 } from '../../lib/apiClient'
 import { SortableWorkoutTile } from '../workout/WorkoutTile'
 import { SortableExerciseRow } from '../workout/ExerciseRow'
@@ -706,6 +707,50 @@ export default function WorkoutBoard({ user }) {
     }))
   }, [])
 
+  const handleLoadLatestSets = useCallback(async (linkId, exerciseId) => {
+    const history = exerciseHistory[exerciseId]
+    if (!history || !history.groups || history.groups.length === 0) return
+
+    const latestGroup = history.groups[0]
+    if (!latestGroup.sets || latestGroup.sets.length === 0) return
+
+    // Delete sets from database
+    try {
+      await Promise.all(latestGroup.sets.map(set => deleteSet(set._id)))
+    } catch (error) {
+      console.error('Failed to delete sets from database', error)
+      return
+    }
+
+    // Load sets into editing list
+    const loadedSets = latestGroup.sets.map((set, index) => ({
+      id: Date.now() + index,
+      weight: set.weight,
+      reps: set.reps,
+      isDropset: set.isDropSet || false
+    }))
+
+    setExerciseSets((prev) => ({
+      ...prev,
+      [linkId]: [...(prev[linkId] || []), ...loadedSets]
+    }))
+
+    // Update history to remove deleted sets
+    setExerciseHistory((prev) => {
+      const currentHistory = prev[exerciseId]
+      if (!currentHistory || !currentHistory.groups) return prev
+
+      const updatedGroups = currentHistory.groups.slice(1)
+      return {
+        ...prev,
+        [exerciseId]: {
+          ...currentHistory,
+          groups: updatedGroups
+        }
+      }
+    })
+  }, [exerciseHistory])
+
   const handleSaveSets = useCallback(async (linkId, exerciseId) => {
     const sets = exerciseSets[linkId] || []
     if (sets.length === 0) {
@@ -894,6 +939,7 @@ export default function WorkoutBoard({ user }) {
                       onEditRepsChange={setEditReps}
                       onEditDropsetChange={setEditIsDropset}
                       onSaveSets={() => handleSaveSets(item.linkId, item.exerciseId)}
+                      onLoadLatestSets={() => handleLoadLatestSets(item.linkId, item.exerciseId)}
                       isSavingSets={savingSetsFor === item.linkId}
                       saveSuccess={saveSuccessFor === item.linkId}
                       saveError={saveErrorFor === item.linkId}
