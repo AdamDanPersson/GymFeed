@@ -665,10 +665,6 @@ export default function WorkoutBoard({ user }) {
       ...prev,
       [linkId]: [...(prev[linkId] || []), newSet]
     }))
-
-    setSetWeight('')
-    setSetReps('')
-    setIsDropset(false)
   }, [setWeight, setReps, isDropset])
 
   const handleStartEditSet = useCallback((set) => {
