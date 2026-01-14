@@ -661,6 +661,17 @@
   gap: 0.65rem;
 }
 
+@media (max-width: 640px) {
+  .confirm-dialog,
+  .move-dialog {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    min-width: min(260px, 92vw);
+    top: calc(100% + 0.75rem);
+  }
+}
+
 .confirm-dialog__message {
   margin: 0;
   font-weight: 700;
@@ -1556,6 +1567,17 @@
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+}
+
+@media (max-width: 640px) {
+  .workout-menu {
+    top: calc(100% + 0.75rem);
+    bottom: auto;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    min-width: min(230px, 90vw);
+  }
 }
 
 .workout-menu__item {
