@@ -965,6 +965,34 @@
   gap: 1rem;
 }
 
+@media (max-width: 520px) {
+  .exercise-history__chart-controls {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.6rem;
+  }
+  
+  .exercise-history__chart-type-toggle {
+    width: 100%;
+    justify-content: center;
+    gap: 0.4rem;
+  }
+
+  .exercise-history__chart-type-toggle .exercise-history__chart-btn {
+    flex: 1 1 0;
+    text-align: center;
+  }
+
+  .exercise-history__chart-metric {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .exercise-history__chart-select {
+    width: 100%;
+  }
+}
+
 .exercise-history__chart-type-toggle {
   display: flex;
   gap: 0.5rem;
