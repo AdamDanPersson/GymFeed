@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { arrayMove, SortableContext, rectSortingStrategy } from '@dnd-kit/sortable'
 import {
@@ -71,6 +71,7 @@ export default function WorkoutBoard({ user }) {
   const [loadingHistoryFor, setLoadingHistoryFor] = useState(null)
   const [chartType, setChartType] = useState('bar')
   const [chartMetric, setChartMetric] = useState('maxWeight')
+  const exercisesPanelRef = useRef(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -204,6 +205,16 @@ export default function WorkoutBoard({ user }) {
       setSelectedMoveWorkoutId('')
     }
   }, [confirmDeleteExerciseId, exerciseLinks, moveModeExerciseId, openMenuExerciseId, renameModeExerciseId])
+
+  useEffect(() => {
+    if (!selectedWorkoutId) return
+    // Scroll to exercises panel when a workout is opened
+    const el = exercisesPanelRef.current
+    if (!el) return
+    window.requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+    })
+  }, [selectedWorkoutId])
 
   const selectedWorkout = useMemo(() => {
     if (!selectedWorkoutId) {
@@ -636,6 +647,19 @@ export default function WorkoutBoard({ user }) {
     const isExpanding = expandedExerciseId !== linkId
     setExpandedExerciseId((prev) => (prev === linkId ? null : linkId))
     
+    if (isExpanding) {
+      window.requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-exercise-row="${linkId}"]`)
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
+          // Offset a bit from the very top to show full content comfortably
+          window.setTimeout(() => {
+            window.scrollBy({ top: -40, left: 0, behavior: 'smooth' })
+          }, 160)
+        }
+      })
+    }
+
     if (isExpanding && exerciseId && !exerciseHistory[exerciseId]) {
       setLoadingHistoryFor(exerciseId)
       try {
@@ -870,7 +894,7 @@ export default function WorkoutBoard({ user }) {
       </div>
 
       {selectedWorkout && (
-        <section className="exercises-panel" aria-label="Övningar">
+        <section className="exercises-panel" aria-label="Övningar" ref={exercisesPanelRef}>
           <div className="exercises-panel__header">
             <h3>Övningar</h3>
             <p className="exercises-panel__subtitle">{selectedWorkout.name}</p>

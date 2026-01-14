@@ -834,15 +834,19 @@
 @media (max-width: 600px) {
   .exercise-history {
     flex-direction: column;
+    padding: 0.6rem;
   }
   
   .exercise-history__sidebar {
     flex: none;
     width: 100%;
+    order: 2;
+    margin-top: 0.5rem;
   }
   
   .exercise-history__content {
     width: 100%;
+    order: 1;
   }
 }
 
@@ -965,6 +969,18 @@
   gap: 1rem;
 }
 
+.exercise-history__chart-toggle {
+  width: 100%;
+  padding: 0.4rem 0.75rem;
+  margin-bottom: 0.6rem;
+  background: rgba(34, 34, 34, 0.08);
+  color: #222222;
+  border: 1px solid rgba(34, 34, 34, 0.25);
+  border-radius: 0.4rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 @media (max-width: 520px) {
   .exercise-history__chart-controls {
     flex-direction: column;
@@ -1059,6 +1075,10 @@
   background: rgba(245, 231, 198, 0.25);
   border-radius: 0.5rem;
   border: 1px solid rgba(34, 34, 34, 0.2);
+}
+
+.exercise-details__form .exercise-details__add-btn {
+  margin-left: auto;
 }
 
 .exercise-details__input {

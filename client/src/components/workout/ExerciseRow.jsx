@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts'
@@ -221,12 +221,22 @@ export function ExerciseRow({
     })
   }, [exerciseHistory, chartMetric])
 
+  const [chartVisible, setChartVisible] = useState(true)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.innerWidth <= 520) {
+      setChartVisible(false)
+    }
+  }, [])
+
   return (
     <>
       <div
         ref={setNodeRef}
         style={style}
         className={`exercise-row ${isDragging ? 'exercise-row--dragging' : ''} ${(isMenuOpen || showDeleteConfirm || isMoving) ? 'exercise-row--layer' : ''}`}
+        data-exercise-row={item.linkId}
         onClick={onToggleExpand}
       >
       <button
@@ -398,6 +408,19 @@ export function ExerciseRow({
               )}
             </div>
             <div className="exercise-history__content">
+                <button
+                  type="button"
+                  className="exercise-history__chart-toggle"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setChartVisible((v) => !v)
+                  }}
+                >
+                  {chartVisible ? 'Dölj graf' : 'Visa graf'}
+                </button>
+
+                {chartVisible && (
+                  <>
               <div className="exercise-history__chart-controls">
                 <div className="exercise-history__chart-type-toggle">
                   <button
@@ -533,6 +556,8 @@ export function ExerciseRow({
                 </ResponsiveContainer>
               ) : (
                 <p className="exercise-history__empty">Ingen data att visa</p>
+              )}
+                </>
               )}
             </div>
           </div>
