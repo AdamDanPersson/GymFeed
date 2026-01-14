@@ -519,6 +519,21 @@
   z-index: 0;
   cursor: pointer;
 }
+.exercise-row--expanded .exercise-details,
+.exercise-row--expanded .exercise-history {
+  animation: exercise-expand-fade 180ms ease-out;
+}
+
+@keyframes exercise-expand-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
 .exercise-row--dragging {
   opacity: 0.7;

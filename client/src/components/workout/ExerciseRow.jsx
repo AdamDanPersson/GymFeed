@@ -235,7 +235,7 @@ export function ExerciseRow({
       <div
         ref={setNodeRef}
         style={style}
-        className={`exercise-row ${isDragging ? 'exercise-row--dragging' : ''} ${(isMenuOpen || showDeleteConfirm || isMoving) ? 'exercise-row--layer' : ''}`}
+        className={`exercise-row ${isDragging ? 'exercise-row--dragging' : ''} ${(isMenuOpen || showDeleteConfirm || isMoving) ? 'exercise-row--layer' : ''} ${isExpanded ? 'exercise-row--expanded' : ''}`}
         data-exercise-row={item.linkId}
         onClick={onToggleExpand}
       >
