@@ -212,7 +212,7 @@ export default function WorkoutBoard({ user }) {
     const el = exercisesPanelRef.current
     if (!el) return
     window.requestAnimationFrame(() => {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+      el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
     })
   }, [selectedWorkoutId])
 
@@ -652,10 +652,6 @@ export default function WorkoutBoard({ user }) {
         const el = document.querySelector(`[data-exercise-row="${linkId}"]`)
         if (el) {
           el.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' })
-          // Offset a bit from the very top to show full content comfortably
-          window.setTimeout(() => {
-            window.scrollBy({ top: -40, left: 0, behavior: 'smooth' })
-          }, 160)
         }
       })
     }

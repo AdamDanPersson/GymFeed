@@ -474,6 +474,7 @@
 }
 
 .exercises-panel__header {
+  scroll-margin-top: 120px;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -595,6 +596,7 @@
   z-index: 0;
   display: flex;
   flex-direction: column;
+  scroll-margin-top: 96px;
   gap: 0.15rem;
 }
 
