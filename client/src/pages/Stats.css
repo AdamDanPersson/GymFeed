@@ -1136,11 +1136,40 @@
   background: rgba(255, 255, 255, 0.6);
   border-radius: 0.4rem;
   border: 1px solid rgba(34, 34, 34, 0.15);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 520px) {
+  .exercise-details__set--editing {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+  
+  .exercise-details__set--editing .exercise-details__edit-input {
+    flex: 1 0 100%;
+    min-width: 100%;
+    max-width: 100%;
+    order: 1;
+  }
+  
+  .exercise-details__set--editing .exercise-details__set-actions {
+    margin-left: auto;
+    width: auto;
+    justify-content: flex-end;
+    order: 4;
+  }
+
+  .exercise-details__set--editing .exercise-details__edit-toggle {
+    order: 3;
+  }
 }
 
 .exercise-details__set-info {
   font-weight: 600;
   font-size: 0.95rem;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .exercise-details__set-drop {

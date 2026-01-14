@@ -574,7 +574,10 @@ export function ExerciseRow({
           {sets.length > 0 && (
             <div className="exercise-details__list">
               {sets.map((set) => (
-                <div key={set.id} className="exercise-details__set">
+                <div
+                  key={set.id}
+                  className={`exercise-details__set ${editingSetId === set.id ? 'exercise-details__set--editing' : ''}`}
+                >
                   {editingSetId === set.id ? (
                     <>
                       <input
