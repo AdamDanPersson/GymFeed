@@ -401,7 +401,7 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
                       </button>
                     )}
                   </div>
-                  <p className="comment__content">{comment.text}</p>
+                  <p className="comment__content">{comment.content ?? comment.text}</p>
                 </li>
               ))}
             </ul>
