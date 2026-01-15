@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import flowMark from '../assets/airwave.svg'
 import statsMark from '../assets/bar_chart.svg'
 import './NavBar.css'
@@ -7,8 +7,35 @@ import './NavBar.css'
 function NavBar() {
   const [isOpen, setIsOpen] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
   const navRef = useRef(null)
   const toggleRef = useRef(null)
+  const touchGuardRef = useRef(false)
+
+  const handleNavigate = useCallback((path) => {
+    setIsOpen(false)
+    if (location.pathname !== path) {
+      navigate(path)
+    }
+  }, [location.pathname, navigate])
+
+  const handleTouchNavigate = useCallback((path, e) => {
+    e.preventDefault()
+    touchGuardRef.current = true
+    handleNavigate(path)
+    window.setTimeout(() => {
+      touchGuardRef.current = false
+    }, 350)
+  }, [handleNavigate])
+
+  const handleClickNavigate = useCallback((path, e) => {
+    if (touchGuardRef.current) {
+      e.preventDefault()
+      return
+    }
+    e.preventDefault()
+    handleNavigate(path)
+  }, [handleNavigate])
 
   // Close menu on route change
   useEffect(() => {
@@ -59,7 +86,8 @@ function NavBar() {
           className={({ isActive }) =>
             isActive ? 'nav-link nav-link--flow is-active' : 'nav-link nav-link--flow'
           }
-          onClick={() => setIsOpen(false)}
+          onTouchEnd={(e) => handleTouchNavigate('/flow', e)}
+          onClick={(e) => handleClickNavigate('/flow', e)}
         >
           <img src={flowMark} alt="Flow" />
           <span className="sr-only">Öppna Flow</span>
@@ -70,7 +98,8 @@ function NavBar() {
           className={({ isActive }) =>
             isActive ? 'nav-link nav-link--stats is-active' : 'nav-link nav-link--stats'
           }
-          onClick={() => setIsOpen(false)}
+          onTouchEnd={(e) => handleTouchNavigate('/stats', e)}
+          onClick={(e) => handleClickNavigate('/stats', e)}
         >
           <img src={statsMark} alt="Stats" />
           <span className="sr-only">Öppna Stats</span>
