@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import flowMark from '../assets/airwave.svg'
 import statsMark from '../assets/bar_chart.svg'
@@ -7,30 +7,38 @@ import './NavBar.css'
 function NavBar() {
   const [isOpen, setIsOpen] = useState(false)
   const location = useLocation()
+  const navRef = useRef(null)
+  const toggleRef = useRef(null)
 
   // Close menu on route change
   useEffect(() => {
     setIsOpen(false)
   }, [location.pathname])
 
-  // Close menu when clicking outside
+  // Close menu when clicking outside (iOS-safe)
   useEffect(() => {
     if (!isOpen) return
-    
-    const handleClickOutside = (e) => {
-      if (!e.target.closest('.global-nav') && !e.target.closest('.nav-toggle')) {
-        setIsOpen(false)
-      }
+
+    const handlePointerOutside = (e) => {
+      const target = e.target
+      if (navRef.current?.contains(target)) return
+      if (toggleRef.current?.contains(target)) return
+      setIsOpen(false)
     }
-    
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
+
+    document.addEventListener('pointerdown', handlePointerOutside, { passive: true })
+    document.addEventListener('touchstart', handlePointerOutside, { passive: true })
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerOutside)
+      document.removeEventListener('touchstart', handlePointerOutside)
+    }
   }, [isOpen])
 
   return (
     <>
       {/* Mobile toggle button */}
       <button 
+        ref={toggleRef}
         className={`nav-toggle ${isOpen ? 'nav-toggle--open' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
         aria-label={isOpen ? 'Stäng meny' : 'Öppna meny'}
@@ -42,6 +50,7 @@ function NavBar() {
       </button>
 
       <nav 
+        ref={navRef}
         className={`global-nav ${isOpen ? 'global-nav--open' : ''}`} 
         aria-label="Huvudnavigation"
       >
