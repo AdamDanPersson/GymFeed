@@ -276,10 +276,14 @@
     padding: 0.25rem 0.6rem;
   }
 
+  .avatar-block {
+    width: 44px;
+    height: 44px;
+  }
+
   .avatar-block__initial {
-    width: 32px;
-    height: 32px;
-    font-size: 0.9rem;
+    font-size: 1.05rem;
+    line-height: 1;
   }
 
   .meta-line--bold {
