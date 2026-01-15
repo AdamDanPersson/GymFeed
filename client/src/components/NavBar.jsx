@@ -20,9 +20,9 @@ function NavBar() {
     if (!isOpen) return
 
     const handlePointerOutside = (e) => {
-      const target = e.target
-      if (navRef.current?.contains(target)) return
-      if (toggleRef.current?.contains(target)) return
+      const path = typeof e.composedPath === 'function' ? e.composedPath() : []
+      if (path.includes(navRef.current) || navRef.current?.contains(e.target)) return
+      if (path.includes(toggleRef.current) || toggleRef.current?.contains(e.target)) return
       setIsOpen(false)
     }
 
@@ -59,6 +59,7 @@ function NavBar() {
           className={({ isActive }) =>
             isActive ? 'nav-link nav-link--flow is-active' : 'nav-link nav-link--flow'
           }
+          onClick={() => setIsOpen(false)}
         >
           <img src={flowMark} alt="Flow" />
           <span className="sr-only">Öppna Flow</span>
@@ -69,6 +70,7 @@ function NavBar() {
           className={({ isActive }) =>
             isActive ? 'nav-link nav-link--stats is-active' : 'nav-link nav-link--stats'
           }
+          onClick={() => setIsOpen(false)}
         >
           <img src={statsMark} alt="Stats" />
           <span className="sr-only">Öppna Stats</span>
