@@ -278,7 +278,7 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
         ) : chartData.length === 0 ? (
           <div className="feed-card__empty">Ingen data för valt intervall</div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={180}>
             {post.chartType === 'bar' ? (
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
@@ -349,11 +349,24 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
         </div>
         <div className="footer-stats">
           <span className="footer-stat">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-              <polyline points="17 6 23 6 23 12" />
-            </svg>
-            {post.chartType === 'bar' ? 'Stapeldiagram' : 'Linjediagram'}
+            {post.type === 'image' ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h3l2-2h8l2 2h3a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="3" />
+              </svg>
+            ) : post.chartType === 'bar' ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="6" y1="20" x2="6" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="18" y1="20" x2="18" y2="14" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                <polyline points="17 6 23 6 23 12" />
+              </svg>
+            )}
+            {post.type === 'image' ? 'Bild' : post.chartType === 'bar' ? 'Stapeldiagram' : 'Linjediagram'}
           </span>
           {isOwner && (
             <button
