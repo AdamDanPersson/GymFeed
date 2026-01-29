@@ -101,6 +101,9 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showAvatarPreview, setShowAvatarPreview] = useState(false)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
+  const [avatarLoaded, setAvatarLoaded] = useState(false)
+  const [postImageLoaded, setPostImageLoaded] = useState(false)
+  const [commentAvatarLoaded, setCommentAvatarLoaded] = useState({})
 
   const [isLiked, setIsLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(post.likeCount || 0)
@@ -163,6 +166,31 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
     media.addListener(update)
     return () => media.removeListener(update)
   }, [])
+
+  useEffect(() => {
+    if (post.profileImageUrl) {
+      setAvatarLoaded(false)
+    }
+  }, [post.profileImageUrl])
+
+  useEffect(() => {
+    if (post.type === 'image' && post.imageUrl) {
+      setPostImageLoaded(false)
+    }
+  }, [post.type, post.imageUrl])
+
+  useEffect(() => {
+    if (!comments.length) return
+    setCommentAvatarLoaded((prev) => {
+      const next = { ...prev }
+      comments.forEach((comment) => {
+        if (comment.profileImageUrl && !(comment._id in next)) {
+          next[comment._id] = false
+        }
+      })
+      return next
+    })
+  }, [comments])
 
   useEffect(() => {
     if (!showAvatarPreview) return
@@ -270,11 +298,17 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
     })
   }, [post.createdAt])
 
+  const getCommentInitial = useCallback((name) => {
+    if (typeof name !== 'string') return '?'
+    const trimmed = name.trim()
+    return trimmed ? trimmed.charAt(0).toUpperCase() : '?'
+  }, [])
+
   return (
     <article className="feed-card">
       <header className="feed-card__header">
         <div
-          className={`avatar-block ${post.profileImageUrl ? 'avatar-block--interactive' : ''}`}
+          className={`avatar-block ${post.profileImageUrl ? 'avatar-block--interactive' : ''} ${post.profileImageUrl && !avatarLoaded ? 'avatar-block--loading' : ''} ${post.profileImageUrl && avatarLoaded ? 'avatar-block--loaded' : ''}`}
           onMouseEnter={() => post.profileImageUrl && setShowAvatarPreview(true)}
           onMouseLeave={() => !isTouchDevice && setShowAvatarPreview(false)}
           onClick={() => isTouchDevice && post.profileImageUrl && setShowAvatarPreview(true)}
@@ -296,6 +330,9 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
               src={post.profileImageUrl}
               alt={post.authorName || 'Profilbild'}
               className="avatar-block__image"
+              loading="lazy"
+              onLoad={() => setAvatarLoaded(true)}
+              onError={() => setAvatarLoaded(true)}
             />
           ) : (
             <span className="avatar-block__initial">
@@ -321,11 +358,16 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
 
       <div className={`feed-card__body ${post.type === 'image' ? 'feed-card__body--image' : ''}`}>
         {post.type === 'image' ? (
-          <img
-            src={post.imageUrl}
-            alt={post.title}
-            className="feed-card__image"
-          />
+          <div className={`feed-card__image-wrap ${!postImageLoaded ? 'feed-card__image-wrap--loading' : ''} ${postImageLoaded ? 'feed-card__image-wrap--loaded' : ''}`}>
+            <img
+              src={post.imageUrl}
+              alt={post.title}
+              className="feed-card__image"
+              loading="lazy"
+              onLoad={() => setPostImageLoaded(true)}
+              onError={() => setPostImageLoaded(true)}
+            />
+          </div>
         ) : isLoadingChart ? (
           <div className="feed-card__loading">Laddar graf...</div>
         ) : chartData.length === 0 ? (
@@ -334,9 +376,20 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
           <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={180}>
             {post.chartType === 'bar' ? (
               <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#1b150f" />
-                <YAxis tick={{ fontSize: 11 }} stroke="#1b150f" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.2)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11, fill: '#000' }}
+                  stroke="rgba(0,0,0,0.6)"
+                  axisLine={{ stroke: 'rgba(0,0,0,0.5)' }}
+                  tickLine={{ stroke: 'rgba(0,0,0,0.45)' }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#000' }}
+                  stroke="rgba(0,0,0,0.6)"
+                  axisLine={{ stroke: 'rgba(0,0,0,0.5)' }}
+                  tickLine={{ stroke: 'rgba(0,0,0,0.45)' }}
+                />
                 <Tooltip
                   contentStyle={{
                     background: '#faf3e1',
@@ -344,13 +397,24 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
                     borderRadius: '8px'
                   }}
                 />
-                <Bar dataKey="value" fill="#ff6d1f" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" fill="#222222" radius={[4, 4, 0, 0]} />
               </BarChart>
             ) : (
               <LineChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.1)" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#1b150f" />
-                <YAxis tick={{ fontSize: 11 }} stroke="#1b150f" />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.2)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 11, fill: '#000' }}
+                  stroke="rgba(0,0,0,0.6)"
+                  axisLine={{ stroke: 'rgba(0,0,0,0.5)' }}
+                  tickLine={{ stroke: 'rgba(0,0,0,0.45)' }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#000' }}
+                  stroke="rgba(0,0,0,0.6)"
+                  axisLine={{ stroke: 'rgba(0,0,0,0.5)' }}
+                  tickLine={{ stroke: 'rgba(0,0,0,0.45)' }}
+                />
                 <Tooltip
                   contentStyle={{
                     background: '#faf3e1',
@@ -361,9 +425,9 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
                 <Line
                   type="monotone"
                   dataKey="value"
-                  stroke="#ff6d1f"
+                  stroke="#222222"
                   strokeWidth={3}
-                  dot={{ fill: '#ff6d1f', strokeWidth: 2, r: 4 }}
+                  dot={{ fill: '#222222', strokeWidth: 2, r: 4 }}
                   activeDot={{ r: 6 }}
                 />
               </LineChart>
@@ -451,23 +515,41 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
             <ul className="comments__list">
               {comments.map((comment) => (
                 <li key={comment._id} className="comment">
-                  <div className="comment__header">
-                    <span className="comment__author">{comment.authorName}</span>
-                    <span className="comment__date">
-                      {new Date(comment.createdAt).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })}
-                    </span>
-                    {currentUserId === comment.userId && (
-                      <button
-                        type="button"
-                        className="comment__delete"
-                        onClick={() => handleDeleteComment(comment._id)}
-                        aria-label="Ta bort kommentar"
-                      >
-                        ×
-                      </button>
+                  <div className={`comment__avatar ${comment.profileImageUrl && !commentAvatarLoaded[comment._id] ? 'comment__avatar--loading' : ''} ${comment.profileImageUrl && commentAvatarLoaded[comment._id] ? 'comment__avatar--loaded' : ''}`}>
+                    {comment.profileImageUrl ? (
+                      <img
+                        src={comment.profileImageUrl}
+                        alt={comment.authorName || 'Profilbild'}
+                        className="comment__avatar-image"
+                        loading="lazy"
+                        onLoad={() => setCommentAvatarLoaded((prev) => ({ ...prev, [comment._id]: true }))}
+                        onError={() => setCommentAvatarLoaded((prev) => ({ ...prev, [comment._id]: true }))}
+                      />
+                    ) : (
+                      <span className="comment__avatar-initial">
+                        {getCommentInitial(comment.authorName)}
+                      </span>
                     )}
                   </div>
-                  <p className="comment__content">{comment.content ?? comment.text}</p>
+                  <div className="comment__body">
+                    <div className="comment__header">
+                      <span className="comment__author">{comment.authorName}</span>
+                      <span className="comment__date">
+                        {new Date(comment.createdAt).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric' })}
+                      </span>
+                      {currentUserId === comment.userId && (
+                        <button
+                          type="button"
+                          className="comment__delete"
+                          onClick={() => handleDeleteComment(comment._id)}
+                          aria-label="Ta bort kommentar"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    <p className="comment__content">{comment.content ?? comment.text}</p>
+                  </div>
                 </li>
               ))}
             </ul>

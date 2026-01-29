@@ -113,6 +113,8 @@ export default function PostBoard({ user, openPostCreator }) {
   const [isLoadingComments, setIsLoadingComments] = useState(false)
   const [commentText, setCommentText] = useState('')           // Text för ny kommentar
   const [isSubmittingComment, setIsSubmittingComment] = useState(false)
+  const [postImageLoaded, setPostImageLoaded] = useState({})
+  const [selectedPostImageLoaded, setSelectedPostImageLoaded] = useState(false)
 
   // ===== BERÄKNADE VÄRDEN =====
   // Memoized userId för att undvika onödiga omberäkningar
@@ -149,6 +151,19 @@ export default function PostBoard({ user, openPostCreator }) {
       ignore = true
     }
   }, [userId])
+
+  useEffect(() => {
+    if (!posts.length) return
+    setPostImageLoaded((prev) => {
+      const next = { ...prev }
+      posts.forEach((post) => {
+        if (post.type === 'image' && post.imageUrl && !(post._id in next)) {
+          next[post._id] = false
+        }
+      })
+      return next
+    })
+  }, [posts])
 
   // ===== POLLING FÖR OLÄSTA KOMMENTARER =====
   // Kontrollerar var 10:e sekund om det finns nya olästa kommentarer
@@ -667,6 +682,9 @@ export default function PostBoard({ user, openPostCreator }) {
     }
 
     setSelectedPost(post)
+    if (post.type === 'image' && post.imageUrl) {
+      setSelectedPostImageLoaded(false)
+    }
     setIsLoadingSelectedPost(true)
     setSelectedPostChartData([])
 
@@ -953,17 +971,20 @@ export default function PostBoard({ user, openPostCreator }) {
         {posts.map((post) => (
           <div
             key={post._id}
-            className={`pass-tile pass-tile--saved pass-tile--post ${post.type === 'image' ? 'pass-tile--image' : ''} ${selectedPost?._id === post._id ? 'pass-tile--selected' : ''}`}
+            className={`pass-tile pass-tile--saved pass-tile--post ${post.type === 'image' ? 'pass-tile--image' : ''} ${post.type === 'image' && post.imageUrl && !postImageLoaded[post._id] ? 'pass-tile--image-loading' : ''} ${post.type === 'image' && postImageLoaded[post._id] ? 'pass-tile--image-loaded' : ''} ${selectedPost?._id === post._id ? 'pass-tile--selected' : ''}`}
             onClick={() => handleSelectPost(post)}
-            style={{ 
-              cursor: 'pointer',
-              ...(post.type === 'image' && post.imageUrl ? {
-                backgroundImage: `url(${post.imageUrl})`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center'
-              } : {})
-            }}
+            style={{ cursor: 'pointer' }}
           >
+            {post.type === 'image' && post.imageUrl && (
+              <img
+                src={post.imageUrl}
+                alt={post.title}
+                className="pass-tile__image"
+                loading="lazy"
+                onLoad={() => setPostImageLoaded((prev) => ({ ...prev, [post._id]: true }))}
+                onError={() => setPostImageLoaded((prev) => ({ ...prev, [post._id]: true }))}
+              />
+            )}
             {post.unreadCommentCount > 0 && (
               <div className="pass-tile__unread-badge" title={`${post.unreadCommentCount} olästa kommentarer`}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -1046,8 +1067,14 @@ export default function PostBoard({ user, openPostCreator }) {
           
           {selectedPost.type === 'image' ? (
             <>
-              <div className="post-preview__image">
-                <img src={selectedPost.imageUrl} alt={selectedPost.title} />
+              <div className={`post-preview__image ${!selectedPostImageLoaded ? 'post-preview__image--loading' : ''} ${selectedPostImageLoaded ? 'post-preview__image--loaded' : ''}`}>
+                <img
+                  src={selectedPost.imageUrl}
+                  alt={selectedPost.title}
+                  loading="lazy"
+                  onLoad={() => setSelectedPostImageLoaded(true)}
+                  onError={() => setSelectedPostImageLoaded(true)}
+                />
               </div>
               {selectedPost.description && (
                 <p className="post-preview__description">{selectedPost.description}</p>

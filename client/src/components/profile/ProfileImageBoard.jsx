@@ -28,6 +28,7 @@ export default function ProfileImageBoard({ user, openProfileImageCreator, onUse
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [isSavingProfileImage, setIsSavingProfileImage] = useState(false)
   const [error, setError] = useState('')
+  const [profileImageLoaded, setProfileImageLoaded] = useState(false)
 
   // Cropper
   const [showCropper, setShowCropper] = useState(false)
@@ -36,6 +37,12 @@ export default function ProfileImageBoard({ user, openProfileImageCreator, onUse
   const profileBoardRef = useRef(null)
 
   const activeProfileImageUrl = user?.profileImageUrl || ''
+
+  useEffect(() => {
+    if (activeProfileImageUrl) {
+      setProfileImageLoaded(false)
+    }
+  }, [activeProfileImageUrl])
 
   // ===== EFFEKT: Öppna profilbildsskapare från navigation =====
   useEffect(() => {
@@ -237,13 +244,18 @@ export default function ProfileImageBoard({ user, openProfileImageCreator, onUse
 
       <div className="pass-menu__board pass-menu__board--post">
         <div
-          className={`pass-tile pass-tile--saved pass-tile--post ${activeProfileImageUrl ? 'pass-tile--image' : ''}`}
-          style={activeProfileImageUrl ? {
-            backgroundImage: `url(${activeProfileImageUrl})`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center'
-          } : {}}
+          className={`pass-tile pass-tile--saved pass-tile--post ${activeProfileImageUrl ? 'pass-tile--image' : ''} ${activeProfileImageUrl && !profileImageLoaded ? 'pass-tile--image-loading' : ''} ${activeProfileImageUrl && profileImageLoaded ? 'pass-tile--image-loaded' : ''}`}
         >
+          {activeProfileImageUrl && (
+            <img
+              src={activeProfileImageUrl}
+              alt="Profilbild"
+              className="pass-tile__image"
+              loading="lazy"
+              onLoad={() => setProfileImageLoaded(true)}
+              onError={() => setProfileImageLoaded(true)}
+            />
+          )}
           <div className="pass-tile__actions">
             <button
               type="button"

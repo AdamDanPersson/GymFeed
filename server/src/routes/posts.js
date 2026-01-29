@@ -609,12 +609,22 @@ export function registerPostRoutes(app) {
         .sort({ createdAt: 1 })
         .toArray()
 
+      const authorIds = [...new Set(comments.map(comment => comment.userId.toString()))]
+      const authorDocs = authorIds.length > 0
+        ? await collections.usersCollection.find({ _id: { $in: authorIds.map(id => new ObjectId(id)) } }).toArray()
+        : []
+
+      const profileImageMap = new Map(
+        authorDocs.map(user => [user._id.toString(), user.profileImageUrl || null])
+      )
+
       return res.json({
         comments: comments.map(c => ({
           _id: c._id.toString(),
           postId: c.postId.toString(),
           userId: c.userId.toString(),
           authorName: c.authorName,
+          profileImageUrl: profileImageMap.get(c.userId.toString()) || null,
           content: c.content,
           createdAt: c.createdAt
         }))
@@ -693,6 +703,7 @@ export function registerPostRoutes(app) {
         postId: commentDoc.postId.toString(),
         userId: commentDoc.userId.toString(),
         authorName: commentDoc.authorName,
+        profileImageUrl: user?.profileImageUrl || null,
         content: commentDoc.content,
         createdAt: commentDoc.createdAt
       })
