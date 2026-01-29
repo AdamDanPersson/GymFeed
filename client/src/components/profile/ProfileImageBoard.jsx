@@ -35,6 +35,8 @@ export default function ProfileImageBoard({ user, openProfileImageCreator, onUse
   const fileInputRef = useRef(null)
   const profileBoardRef = useRef(null)
 
+  const activeProfileImageUrl = user?.profileImageUrl || ''
+
   // ===== EFFEKT: Öppna profilbildsskapare från navigation =====
   useEffect(() => {
     if (openProfileImageCreator && user) {
@@ -166,6 +168,33 @@ export default function ProfileImageBoard({ user, openProfileImageCreator, onUse
     }
   }, [onUserUpdate, selectedImage])
 
+  const handleRemoveProfileImage = useCallback(async () => {
+    setError('')
+
+    const userId = getStoredUserId()
+    if (!userId) {
+      setError('Du måste logga in')
+      return
+    }
+
+    setIsSavingProfileImage(true)
+    try {
+      await updateProfileImage({ imageUrl: null })
+
+      const storedUser = getStoredUser()
+      const nextUser = storedUser ? { ...storedUser, profileImageUrl: null } : null
+      if (nextUser) {
+        localStorage.setItem('user', JSON.stringify(nextUser))
+        onUserUpdate?.(nextUser)
+      }
+    } catch (err) {
+      console.error('Failed to remove profile image:', err)
+      setError(err.message || 'Något gick fel')
+    } finally {
+      setIsSavingProfileImage(false)
+    }
+  }, [onUserUpdate])
+
   /**
    * Avbryt uppladdning av profilbild
    */
@@ -202,17 +231,55 @@ export default function ProfileImageBoard({ user, openProfileImageCreator, onUse
       )}
 
       <h2>Profilbild</h2>
+      {error && !isEditingProfileImage && (
+        <p className="pass-menu__message pass-menu__message--error">{error}</p>
+      )}
 
-      {!isEditingProfileImage ? (
+      <div className="pass-menu__board pass-menu__board--post">
+        <div
+          className={`pass-tile pass-tile--saved pass-tile--post ${activeProfileImageUrl ? 'pass-tile--image' : ''}`}
+          style={activeProfileImageUrl ? {
+            backgroundImage: `url(${activeProfileImageUrl})`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center'
+          } : {}}
+        >
+          <div className="pass-tile__actions">
+            <button
+              type="button"
+              className="pass-tile__delete-btn"
+              onClick={handleRemoveProfileImage}
+              disabled={!activeProfileImageUrl || isSavingProfileImage}
+              aria-label="Ta bort profilbild"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" />
+                <path d="M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="pass-tile__content">
+            <h3>{activeProfileImageUrl ? 'Aktiv profilbild' : 'Ingen profilbild'}</h3>
+            <span className="pass-tile__type-badge">{activeProfileImageUrl ? 'Aktiv' : 'Saknas'}</span>
+          </div>
+        </div>
+
         <button
           type="button"
           className="pass-tile pass-tile--add"
           onClick={() => setIsEditingProfileImage(true)}
           aria-label="Lägg till profilbild"
+          disabled={isEditingProfileImage}
         >
           <span aria-hidden="true">+</span>
         </button>
-      ) : (
+      </div>
+
+      {isEditingProfileImage && (
         <div className="post-creator">
           <div className="post-creator__header">
             <h3>Ny profilbild</h3>

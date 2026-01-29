@@ -202,16 +202,13 @@ function requireUser(req, res, next) {
  * Kräver: imageUrl
  */
 app.put('/users/profile-image', requireUser, async (req, res) => {
-  const imageUrl = typeof req.body?.imageUrl === 'string' ? req.body.imageUrl.trim() : ''
-
-  if (!imageUrl) {
-    return res.status(400).json({ message: 'imageUrl is required' })
-  }
+  const rawImageUrl = req.body?.imageUrl
+  const imageUrl = typeof rawImageUrl === 'string' ? rawImageUrl.trim() : null
 
   try {
     const result = await usersCollection.findOneAndUpdate(
       { _id: req.userId },
-      { $set: { profileImageUrl: imageUrl, updatedAt: new Date() } },
+      { $set: { profileImageUrl: imageUrl || null, updatedAt: new Date() } },
       { returnDocument: 'after' }
     )
 
@@ -220,7 +217,7 @@ app.put('/users/profile-image', requireUser, async (req, res) => {
     }
 
     return res.json({
-      profileImageUrl: result.profileImageUrl || imageUrl
+      profileImageUrl: result.profileImageUrl || null
     })
   } catch (error) {
     console.error('Update profile image error', error)

@@ -99,6 +99,8 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
   const [chartData, setChartData] = useState([])
   const [isLoadingChart, setIsLoadingChart] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [showAvatarPreview, setShowAvatarPreview] = useState(false)
+  const [isTouchDevice, setIsTouchDevice] = useState(false)
 
   const [isLiked, setIsLiked] = useState(false)
   const [likeCount, setLikeCount] = useState(post.likeCount || 0)
@@ -148,6 +150,32 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
       ignore = true
     }
   }, [post._id, post.type, post.metric, post.dateRange, post.dateMode, post.specificDates])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const media = window.matchMedia('(pointer: coarse)')
+    const update = () => setIsTouchDevice(media.matches)
+    update()
+    if (media.addEventListener) {
+      media.addEventListener('change', update)
+      return () => media.removeEventListener('change', update)
+    }
+    media.addListener(update)
+    return () => media.removeListener(update)
+  }, [])
+
+  useEffect(() => {
+    if (!showAvatarPreview) return
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setShowAvatarPreview(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [showAvatarPreview])
 
   const handleDelete = useCallback(async () => {
     if (!confirm('Är du säker på att du vill ta bort denna post?')) return
@@ -245,7 +273,24 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
   return (
     <article className="feed-card">
       <header className="feed-card__header">
-        <div className="avatar-block">
+        <div
+          className={`avatar-block ${post.profileImageUrl ? 'avatar-block--interactive' : ''}`}
+          onMouseEnter={() => post.profileImageUrl && setShowAvatarPreview(true)}
+          onMouseLeave={() => !isTouchDevice && setShowAvatarPreview(false)}
+          onClick={() => isTouchDevice && post.profileImageUrl && setShowAvatarPreview(true)}
+          role={post.profileImageUrl ? 'button' : undefined}
+          tabIndex={post.profileImageUrl ? 0 : undefined}
+          onKeyDown={(e) => {
+            if (!post.profileImageUrl) return
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault()
+              if (isTouchDevice) {
+                setShowAvatarPreview(true)
+              }
+            }
+          }}
+          aria-label={post.profileImageUrl ? 'Visa profilbild' : undefined}
+        >
           {post.profileImageUrl ? (
             <img
               src={post.profileImageUrl}
@@ -447,6 +492,24 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
               </button>
             </form>
           )}
+        </div>
+      )}
+
+      {showAvatarPreview && post.profileImageUrl && (
+        <div
+          className={`avatar-preview-overlay ${isTouchDevice ? 'avatar-preview-overlay--interactive' : ''}`}
+          onClick={() => setShowAvatarPreview(false)}
+          role="presentation"
+        >
+          <div
+            className="avatar-preview-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={post.profileImageUrl}
+              alt={post.authorName || 'Profilbild'}
+            />
+          </div>
         </div>
       )}
     </article>
