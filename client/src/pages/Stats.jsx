@@ -4,6 +4,7 @@ import { getStoredUser } from '../lib/apiClient'
 import MonthlyVisitsChart from '../components/stats/MonthlyVisitsChart'
 import WorkoutBoard from '../components/workout/WorkoutBoard'
 import PostBoard from '../components/post/PostBoard'
+import ProfileImageBoard from '../components/profile/ProfileImageBoard'
 import './Stats.css'
 
 function StatsPage() {
@@ -15,10 +16,11 @@ function StatsPage() {
   
   // Check if we should open post creator from navigation
   const openPostCreator = location.state?.openPostCreator || false
+  const openProfileImageCreator = location.state?.openProfileImageCreator || false
 
   // Clear the state after reading it
   useEffect(() => {
-    if (location.state?.openPostCreator) {
+    if (location.state?.openPostCreator || location.state?.openProfileImageCreator) {
       navigate(location.pathname, { replace: true, state: {} })
     }
   }, [location.state, location.pathname, navigate])
@@ -34,6 +36,11 @@ function StatsPage() {
       <MonthlyVisitsChart user={user} />
       <WorkoutBoard user={user} />
       <PostBoard user={user} openPostCreator={openPostCreator} />
+      <ProfileImageBoard
+        user={user}
+        openProfileImageCreator={openProfileImageCreator}
+        onUserUpdate={setUser}
+      />
     </main>
   )
 }

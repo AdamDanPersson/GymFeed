@@ -89,7 +89,7 @@ export default function ImageCropper({
       <div className="image-cropper-modal">
         <div className="image-cropper-header">
           <h3>Beskär bild</h3>
-          <p>Dra och zooma för att välja område (400×400 px)</p>
+          <p>Dra och zooma för att välja område ({outputSize}×{outputSize} px)</p>
         </div>
         
         <div className="image-cropper-container">

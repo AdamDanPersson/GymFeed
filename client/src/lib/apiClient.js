@@ -71,6 +71,14 @@ export function loginUser(payload) {
   })
 }
 
+export function updateProfileImage(payload) {
+  return request('/users/profile-image', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+    requireUser: true
+  })
+}
+
 export function fetchWorkouts() {
   return request('/workouts', { requireUser: true })
 }

@@ -246,9 +246,17 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
     <article className="feed-card">
       <header className="feed-card__header">
         <div className="avatar-block">
-          <span className="avatar-block__initial">
-            {post.authorName?.charAt(0).toUpperCase() || '?'}
-          </span>
+          {post.profileImageUrl ? (
+            <img
+              src={post.profileImageUrl}
+              alt={post.authorName || 'Profilbild'}
+              className="avatar-block__image"
+            />
+          ) : (
+            <span className="avatar-block__initial">
+              {post.authorName?.charAt(0).toUpperCase() || '?'}
+            </span>
+          )}
         </div>
         <div className="meta-block">
           <span className="meta-line meta-line--bold">{post.authorName}</span>

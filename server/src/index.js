@@ -119,6 +119,7 @@ app.post('/auth/register', async (req, res) => {
     firstName: trimmedFirstName,
     lastName: trimmedLastName,
     fullName,
+    profileImageUrl: null,
     createdAt: new Date()
   }
 
@@ -129,7 +130,8 @@ app.post('/auth/register', async (req, res) => {
       email: normalizedEmail,
       firstName: trimmedFirstName,
       lastName: trimmedLastName,
-      name: fullName
+      name: fullName,
+      profileImageUrl: null
     })
   } catch (error) {
     if (error.code === 11000) {
@@ -167,7 +169,8 @@ app.post('/auth/login', async (req, res) => {
       email: user.email,
       firstName: user.firstName || null,
       lastName: user.lastName || null,
-      name: responseFullName
+      name: responseFullName,
+      profileImageUrl: user.profileImageUrl || null
     })
   } catch (error) {
     console.error('Login error', error)
@@ -191,6 +194,39 @@ function requireUser(req, res, next) {
   req.userId = new ObjectId(userIdHeader)
   next()
 }
+
+// ==================== PROFILBILD ====================
+
+/**
+ * PUT /users/profile-image - Uppdatera profilbild för inloggad användare
+ * Kräver: imageUrl
+ */
+app.put('/users/profile-image', requireUser, async (req, res) => {
+  const imageUrl = typeof req.body?.imageUrl === 'string' ? req.body.imageUrl.trim() : ''
+
+  if (!imageUrl) {
+    return res.status(400).json({ message: 'imageUrl is required' })
+  }
+
+  try {
+    const result = await usersCollection.findOneAndUpdate(
+      { _id: req.userId },
+      { $set: { profileImageUrl: imageUrl, updatedAt: new Date() } },
+      { returnDocument: 'after' }
+    )
+
+    if (!result) {
+      return res.status(404).json({ message: 'User not found' })
+    }
+
+    return res.json({
+      profileImageUrl: result.profileImageUrl || imageUrl
+    })
+  } catch (error) {
+    console.error('Update profile image error', error)
+    return res.status(500).json({ message: 'Failed to update profile image' })
+  }
+})
 
 // ==================== TRÄNINGSPASS (WORKOUTS) ====================
 
@@ -1214,6 +1250,7 @@ app.post('/posts', requireUser, async (req, res) => {
         description: postDoc.description,
         imageUrl: postDoc.imageUrl,
         authorName: postDoc.authorName,
+        profileImageUrl: user?.profileImageUrl || null,
         createdAt: postDoc.createdAt,
         likeCount: postDoc.likeCount,
         commentCount: postDoc.commentCount
@@ -1302,6 +1339,7 @@ app.post('/posts', requireUser, async (req, res) => {
       exerciseId: postDoc.exerciseId.toString(),
       exerciseName: postDoc.exerciseName,
       authorName: postDoc.authorName,
+      profileImageUrl: user?.profileImageUrl || null,
       chartType: postDoc.chartType,
       metric: postDoc.metric,
       dateRange: postDoc.dateRange,
@@ -1366,6 +1404,16 @@ app.get('/posts', async (req, res) => {
       })
     }
 
+    // Fetch profile images for post authors
+    const authorIds = [...new Set(items.map(post => post.userId.toString()))]
+    const authorDocs = authorIds.length > 0
+      ? await usersCollection.find({ _id: { $in: authorIds.map(id => new ObjectId(id)) } }).toArray()
+      : []
+
+    const profileImageMap = new Map(
+      authorDocs.map(user => [user._id.toString(), user.profileImageUrl || null])
+    )
+
     return res.json({
       items: items.map((post) => ({
         _id: post._id.toString(),
@@ -1377,6 +1425,7 @@ app.get('/posts', async (req, res) => {
         exerciseName: post.exerciseName,
         imageUrl: post.imageUrl,
         authorName: post.authorName,
+        profileImageUrl: profileImageMap.get(post.userId.toString()) || null,
         chartType: post.chartType,
         metric: post.metric,
         dateRange: post.dateRange,
@@ -1418,6 +1467,15 @@ app.get('/posts/new', async (req, res) => {
       .limit(limit)
       .toArray()
 
+    const authorIds = [...new Set(posts.map(post => post.userId.toString()))]
+    const authorDocs = authorIds.length > 0
+      ? await usersCollection.find({ _id: { $in: authorIds.map(id => new ObjectId(id)) } }).toArray()
+      : []
+
+    const profileImageMap = new Map(
+      authorDocs.map(user => [user._id.toString(), user.profileImageUrl || null])
+    )
+
     return res.json({
       count: posts.length,
       items: posts.map((post) => ({
@@ -1430,6 +1488,7 @@ app.get('/posts/new', async (req, res) => {
         exerciseName: post.exerciseName,
         imageUrl: post.imageUrl,
         authorName: post.authorName,
+        profileImageUrl: profileImageMap.get(post.userId.toString()) || null,
         chartType: post.chartType,
         metric: post.metric,
         dateRange: post.dateRange,
@@ -1462,6 +1521,8 @@ app.get('/posts/:postId', async (req, res) => {
       return res.status(404).json({ message: 'Post not found' })
     }
 
+    const author = await usersCollection.findOne({ _id: post.userId })
+
     return res.json({
       _id: post._id.toString(),
       userId: post.userId.toString(),
@@ -1472,6 +1533,7 @@ app.get('/posts/:postId', async (req, res) => {
       exerciseName: post.exerciseName,
       imageUrl: post.imageUrl,
       authorName: post.authorName,
+      profileImageUrl: author?.profileImageUrl || null,
       chartType: post.chartType,
       metric: post.metric,
       dateRange: post.dateRange,
