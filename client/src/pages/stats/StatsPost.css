@@ -87,7 +87,6 @@
 
 .post-creator__close:hover {
   background: rgba(245, 231, 198, 0.1);
-  height: clamp(200px, 35vw, 320px);
 }
 
 .post-creator__form {
