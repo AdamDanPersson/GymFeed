@@ -100,6 +100,7 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
   const [isLoadingChart, setIsLoadingChart] = useState(true)
   const [isDeleting, setIsDeleting] = useState(false)
   const [showAvatarPreview, setShowAvatarPreview] = useState(false)
+  const [isAvatarClosing, setIsAvatarClosing] = useState(false)
   const [isTouchDevice, setIsTouchDevice] = useState(false)
   const [avatarLoaded, setAvatarLoaded] = useState(false)
   const [postImageLoaded, setPostImageLoaded] = useState(false)
@@ -205,6 +206,19 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [showAvatarPreview])
 
+  const handleOpenAvatarPreview = useCallback(() => {
+    setIsAvatarClosing(false)
+    setShowAvatarPreview(true)
+  }, [])
+
+  const handleCloseAvatarPreview = useCallback(() => {
+    setIsAvatarClosing(true)
+    window.setTimeout(() => {
+      setShowAvatarPreview(false)
+      setIsAvatarClosing(false)
+    }, 250)
+  }, [])
+
   const handleDelete = useCallback(async () => {
     if (!confirm('Är du säker på att du vill ta bort denna post?')) return
 
@@ -309,9 +323,9 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
       <header className="feed-card__header">
         <div
           className={`avatar-block ${post.profileImageUrl ? 'avatar-block--interactive' : ''} ${post.profileImageUrl && !avatarLoaded ? 'avatar-block--loading' : ''} ${post.profileImageUrl && avatarLoaded ? 'avatar-block--loaded' : ''}`}
-          onMouseEnter={() => post.profileImageUrl && setShowAvatarPreview(true)}
-          onMouseLeave={() => !isTouchDevice && setShowAvatarPreview(false)}
-          onClick={() => isTouchDevice && post.profileImageUrl && setShowAvatarPreview(true)}
+          onMouseEnter={() => post.profileImageUrl && handleOpenAvatarPreview()}
+          onMouseLeave={() => !isTouchDevice && handleCloseAvatarPreview()}
+          onClick={() => isTouchDevice && post.profileImageUrl && handleOpenAvatarPreview()}
           role={post.profileImageUrl ? 'button' : undefined}
           tabIndex={post.profileImageUrl ? 0 : undefined}
           onKeyDown={(e) => {
@@ -319,7 +333,7 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault()
               if (isTouchDevice) {
-                setShowAvatarPreview(true)
+                handleOpenAvatarPreview()
               }
             }
           }}
@@ -579,12 +593,12 @@ function GraphPostCard({ post, currentUserId, onDelete, onUpdatePost }) {
 
       {showAvatarPreview && post.profileImageUrl && (
         <div
-          className={`avatar-preview-overlay ${isTouchDevice ? 'avatar-preview-overlay--interactive' : ''}`}
-          onClick={() => setShowAvatarPreview(false)}
+          className={`avatar-preview-overlay ${isTouchDevice ? 'avatar-preview-overlay--interactive' : ''} ${isAvatarClosing ? 'avatar-preview-overlay--closing' : ''}`}
+          onClick={() => handleCloseAvatarPreview()}
           role="presentation"
         >
           <div
-            className="avatar-preview-modal"
+            className={`avatar-preview-modal ${isAvatarClosing ? 'avatar-preview-modal--closing' : ''}`}
             onClick={(e) => e.stopPropagation()}
           >
             <img
